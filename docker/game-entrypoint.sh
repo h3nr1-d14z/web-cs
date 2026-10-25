@@ -31,8 +31,32 @@ if [ -d /opt/yapb/addons/yapb ] && [ ! -f "$ROOT/cstrike/addons/yapb/bin/yapb.so
   cp -a /opt/yapb/addons/yapb/conf "$ROOT/cstrike/addons/yapb/"
   cp -a /opt/yapb/addons/yapb/data "$ROOT/cstrike/addons/yapb/"
 fi
-# liblist: gamedll_linux trỏ sang yapb (yapb tự nạp dlls/cs.so của ReGameDLL)
-sed -i 's#^gamedll_linux .*#gamedll_linux "addons/yapb/bin/yapb.so"#' "$ROOT/cstrike/liblist.gam"
+
+# KZ mode: metamod + AMXX + ProKreedz (không bots). Mặc định: YaPB bots.
+if [ "${KZ_MODE:-0}" = "1" ]; then
+  mkdir -p "$ROOT/cstrike/addons/amxmodx"
+  cp -a /opt/amxx/addons/amxmodx/configs "$ROOT/cstrike/addons/amxmodx/"
+  cp -a /opt/amxx/addons/amxmodx/data "$ROOT/cstrike/addons/amxmodx/"
+  cp -a /opt/amxx/addons/amxmodx/dlls "$ROOT/cstrike/addons/amxmodx/"
+  cp -a /opt/amxx/addons/amxmodx/modules "$ROOT/cstrike/addons/amxmodx/"
+  mkdir -p "$ROOT/cstrike/addons/amxmodx/plugins"
+  cp -f /opt/config/amxx-plugins/*.amxx "$ROOT/cstrike/addons/amxmodx/plugins/"
+  mkdir -p "$ROOT/cstrike/addons/metamod/dlls"
+  cp -f /opt/metamod/metamod_i386.so "$ROOT/cstrike/addons/metamod/dlls/metamod_i386.so"
+  printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$ROOT/cstrike/addons/metamod/plugins.ini"
+  printf '[config]\ngamedll_linux dlls/cs.so\n' > "$ROOT/cstrike/addons/metamod/config.ini"
+  sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod_i386.so"#' "$ROOT/cstrike/liblist.gam"
+  echo "→ KZ mode: metamod + AMXX + ProKreedz (không bots)"
+else
+  # Bots mode: engine nạp yapb.so qua liblist, yapb tự chain tới ReGameDLL.
+  if [ -d /opt/yapb/addons/yapb ]; then
+    mkdir -p "$ROOT/cstrike/addons/yapb"
+    cp -a /opt/yapb/addons/yapb/bin "$ROOT/cstrike/addons/yapb/"
+    cp -a /opt/yapb/addons/yapb/conf "$ROOT/cstrike/addons/yapb/"
+    cp -a /opt/yapb/addons/yapb/data "$ROOT/cstrike/addons/yapb/"
+  fi
+  sed -i 's#^gamedll_linux .*#gamedll_linux "addons/yapb/bin/yapb.so"#' "$ROOT/cstrike/liblist.gam"
+fi
 
 # delta.lst is the network delta table; the engine aborts without it and some
 # HLDS builds ship it only in the newer game files.

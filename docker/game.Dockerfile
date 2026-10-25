@@ -36,10 +36,31 @@ RUN curl -fsSL -o /tmp/yapb.tar.xz \
  && rm /tmp/yapb.tar.xz \
  && test -f /opt/yapb/addons/yapb/bin/yapb.so
 
+# KZ mode (KZ_MODE=1): metamod-p + AMX Mod X (base + cstrike) cho plugin
+# ProKreedz — checkpoints/timer/teleport cho map parkour. Bots TẮT trong mode này.
+RUN curl -fsSL -o /tmp/metamod.tar.xz \
+      "https://github.com/Bots-United/metamod-p/releases/download/v1.21p109/metamod-p-v1.21p109-linux_ubuntu2404.tar.xz" \
+ && mkdir -p /opt/metamod \
+ && tar -xJf /tmp/metamod.tar.xz -C /opt/metamod \
+ && rm /tmp/metamod.tar.xz \
+ && test -f /opt/metamod/metamod_i386.so \
+ && curl -fsSL -o /tmp/amxx-base.tar.gz \
+      "https://github.com/alliedmodders/amxmodx/releases/download/1.10.0.5487/amxmodx-1.10.0-git5487-base-linux.tar.gz" \
+ && curl -fsSL -o /tmp/amxx-cstrike.tar.gz \
+      "https://github.com/alliedmodders/amxmodx/releases/download/1.10.0.5487/amxmodx-1.10.0-git5487-cstrike-linux.tar.gz" \
+ && mkdir -p /opt/amxx \
+ && tar -xzf /tmp/amxx-base.tar.gz -C /opt/amxx \
+ && tar -xzf /tmp/amxx-cstrike.tar.gz -C /opt/amxx \
+ && rm /tmp/amxx-*.tar.gz \
+ && test -f /opt/amxx/addons/amxmodx/dlls/amxmodx_mm_i386.so
+
 COPY docker/game-entrypoint.sh /usr/local/bin/game-entrypoint.sh
 COPY config/server.cfg /opt/config/server.cfg
 COPY config/motd.txt /opt/config/motd.txt
 COPY config/liblist.gam /opt/config/liblist.gam
+COPY config/presets.json /opt/config/presets.json
+COPY config/resource /opt/config/resource
+COPY config/amxx-plugins /opt/config/amxx-plugins
 COPY game/supervisor.py /opt/supervisor.py
 RUN chmod +x /usr/local/bin/game-entrypoint.sh
 
