@@ -206,15 +206,36 @@ function roomView(room, { includeToken = false } = {}) {
   }
 }
 
-/** Tạo phòng; trả room kèm ownerToken (chỉ trả 1 lần lúc tạo). */
+/** Tạo phòng; trả room kèm ownerToken (chỉ trả 1 lần lúc tạo).
+ *  spec.proc = false → chỉ tạo record (dùng cho test tunnel, không spawn server). */
 export async function createRoom(spec = {}) {
-  const room = await spawnRoom({
+  const base = {
     name: String(spec.name ?? '').slice(0, 32) || undefined,
     map: String(spec.map ?? 'de_dust2'),
     maxplayers: Math.min(Math.max(Number(spec.maxplayers) || 16, 2), 16),
     password: String(spec.password ?? '').slice(0, 24),
     bots: Math.min(Math.max(Number(spec.bots) || 0, 0), 8),
-  })
+  }
+
+  if (spec.proc === false) {
+    const id = newId()
+    const port = spec.port ?? freePort()
+    const room = {
+      id,
+      ...base,
+      port,
+      ownerToken: ownerToken(),
+      proc: null,
+      createdAt: Date.now(),
+      emptySince: Date.now(),
+      status: { players: 0, bots: 0, humans: 0 },
+    }
+    rooms.set(id, room)
+    dirty()
+    return roomView(room, { includeToken: true })
+  }
+
+  const room = await spawnRoom({ ...base, id: spec.id, port: spec.port, ownerToken: spec.ownerToken })
   dirty()
   log.info(`room ${room.id}: đã tạo (chủ phòng nhận token)`)
   return roomView(room, { includeToken: true })

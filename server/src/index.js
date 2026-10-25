@@ -227,6 +227,8 @@ async function handleApi(request, response, url) {
       maxplayers: body.maxplayers,
       password: body.password,
       bots: body.bots ?? 0,
+      proc: body.proc,
+      port: body.port,
     })
     return sendJson(response, 200, created)
   }
@@ -565,6 +567,7 @@ server.on('upgrade', (request, socket, head) => {
 
   const roomId = url.searchParams.get('room')
   const room = roomId ? getRoom(roomId) : listRooms()[0]
+  log.info(`WS upgrade: room=${roomId} found=${Boolean(room)}`)
   if (!room) {
     log.warn(`từ chối WS: phòng "${roomId ?? '(trống)'}" không tồn tại`)
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n')

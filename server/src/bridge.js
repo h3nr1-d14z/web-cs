@@ -33,18 +33,33 @@ export function attachBridge(ws, { host, port, label }) {
     close('udp-error')
   })
 
+  // Gói đến từ game server trước khi udp.connect() hoàn tất: đưa vào hàng đợi,
+  // flush ngay khi connect xong (GoldSrc signon bắn nhiều gói rất sớm).
+  let linked = false
+  const early = []
+  udp.on('connect', () => {
+    linked = true
+    log.info(`bridge ${label}: UDP -> ${host}:${port} (source ${udp.address().port})`)
+    early.splice(0).forEach((message) => {
+      if (ws.readyState === ws.OPEN) ws.send(message, { binary: true })
+    })
+  })
+
+  udp.connect(port, host)
+
   udp.on('message', (message) => {
     if (ws.readyState !== ws.OPEN) return
     ws.send(message, { binary: true })
   })
 
-  udp.connect(port, host, () => {
-    log.info(`bridge ${label}: UDP -> ${host}:${port} (source ${udp.address().port})`)
-  })
-
   ws.on('message', (data) => {
     if (typeof data === 'string') return
     if (closed) return
+    if (!linked) {
+      early.push(Buffer.from(data))
+      if (early.length > 128) early.shift()
+      return
+    }
     try {
       udp.send(data)
     } catch (error) {

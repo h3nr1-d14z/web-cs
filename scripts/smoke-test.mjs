@@ -76,7 +76,7 @@ await check('/healthz', async () => {
 await check('/', async () => {
   const response = await fetch(`http://127.0.0.1:${PORT}/`)
   const html = await response.text()
-  if (!html.includes('Counter-Strike')) throw new Error('index.html không phải lobby')
+  if (!html.includes('LAN Party')) throw new Error('index.html không phải dashboard')
   console.log(`✓ / ${response.status} (${html.length} bytes)`)
 })
 
@@ -87,11 +87,27 @@ await check('/api/status', async () => {
 
 await check('/game.zip', async () => {
   const response = await fetch(`http://127.0.0.1:${PORT}/game.zip`)
-  console.log(`✓ /game.zip ${response.status} (503 = chưa có assets)`) 
+  console.log(`✓ /game.zip ${response.status} (503 = chưa có assets)`)
 })
 
+// Tunnel cần một phòng thật (bridge route theo ?room=). Tạo room record
+// KHÔNG spawn server, trỏ port tới echo UDP nội bộ của chính test này.
 await check('tunnel WS ↔ UDP', async () => {
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`)
+  const dgram = await import('node:dgram')
+  const echo = dgram.createSocket('udp4')
+  echo.on('message', (message, remote) => echo.send(message, remote.port, remote.address))
+  await new Promise((resolve) => echo.bind(0, resolve))
+  const udpPort = echo.address().port
+
+  const created = await (
+    await fetch(`http://127.0.0.1:${PORT}/api/rooms`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'smoke', map: 'de_dust2', port: udpPort, proc: false }),
+    })
+  ).json()
+
+  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws?room=${created.id}`)
   ws.binaryType = 'arraybuffer'
   await new Promise((resolve, reject) => {
     ws.onopen = resolve
@@ -109,6 +125,12 @@ await check('tunnel WS ↔ UDP', async () => {
   ])
 
   ws.close()
+  await fetch(`http://127.0.0.1:${PORT}/api/rooms/${created.id}`, { method: 'DELETE' })
+  try {
+    echo.close()
+  } catch {
+    /* already closed */
+  }
 
   if (!reply) throw new Error('không nhận được phản hồi qua tunnel')
   const text = new TextDecoder().decode(reply)
