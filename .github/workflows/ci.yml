@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps (client)
+        run: npm ci --no-audit --no-fund
+        working-directory: client
+
+      - name: Typecheck + build client
+        run: npm run build
+        working-directory: client
+
+      - name: Install deps (server)
+        run: npm ci --omit=dev --no-audit --no-fund
+        working-directory: server
+
+      - name: Smoke test (static + tunnel WS↔UDP)
+        run: node scripts/smoke-test.mjs
+        env:
+          SMOKE_PUBLIC_DIR: client/dist
