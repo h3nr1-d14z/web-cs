@@ -1,0 +1,81 @@
+name: web-cs
+
+# Two long-running services + one setup job sharing a single volume:
+#
+#   assets  → SteamCMD downloads Valve's CS 1.6 files once, trims them, and
+#             writes game.zip + valve/ + cstrike/ into the `assets` volume.
+#   game    → Xash3D dedicated server (i386) with ReGameDLL, reads the volume.
+#   web     → static client + WebSocket↔UDP bridge, the only published port.
+#
+# Players only ever talk to `web`. UDP never leaves the Docker network, which is
+# why this works over NetBird (a WireGuard mesh that carries TCP fine but would
+# need extra work for direct UDP peer traffic).
+
+services:
+  assets:
+    profiles: ["setup"]
+    build:
+      context: .
+      dockerfile: docker/assets.Dockerfile
+    image: web-cs-assets:latest
+    environment:
+      HLDS_APP_ID: "90"
+    volumes:
+      - assets:/out
+
+  game:
+    build:
+      context: .
+      dockerfile: docker/game.Dockerfile
+      platforms:
+        - linux/386
+    image: web-cs-game:latest
+    platform: linux/386
+    # `on-failure` (not unless-stopped) so a container that starts before the
+    # assets job has run gives up after a few tries instead of restart-looping.
+    restart: on-failure
+    environment:
+      ROOMS_API: "1"
+      ROOMS_FILE: /data/rooms.json
+      LISTEN_PORT: "7000"
+      UDP_BASE: "27015"
+      EMPTY_TTL: "1800"
+      RCON_PASSWORD: ${RCON_PASSWORD:-doi-mat-khau-nay}
+    volumes:
+      - assets:/xashds
+    expose:
+      - "27015-27050/udp"
+      - "7000"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /xashds/cstrike/dlls/cs.so"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    image: web-cs-web:latest
+    restart: unless-stopped
+    depends_on:
+      - game
+    environment:
+      PORT: "8080"
+      GAME_HOST: game
+      GAME_ZIP: /data/game.zip
+      PUBLIC_DIR: /app/public
+      ASSETS_DIR: /data
+      PRESETS_FILE: /app/config/presets.json
+      GAME_MGR: http://game:7000
+      RCON_PASSWORD: ${RCON_PASSWORD:-doi-mat-khau-nay}
+      ACCESS_CODE: ${ACCESS_CODE:-}
+      MAX_CONNECTIONS: "64"
+    volumes:
+      - assets:/data
+    ports:
+      # Host port is the only thing coworkers need: http://<host-ip>:27016
+      - "${WEB_PORT:-27016}:8080"
+
+volumes:
+  assets:

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>CS 1.6 — Đang chơi</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="state-lobby">
+    <!-- Game surface -->
+    <div id="stage" hidden>
+      <canvas id="canvas" tabindex="0"></canvas>
+
+      <div id="hud" class="hud">
+        <span class="hud-chip" id="hud-map">—</span>
+        <span class="hud-chip" id="hud-players">—</span>
+        <span class="hud-chip hud-chip--good" id="hud-net">đang kết nối…</span>
+        <button class="hud-chip hud-chip--button" id="btn-fs" type="button" title="Toàn màn hình">
+          ⛶
+        </button>
+        <button class="hud-chip hud-chip--button" id="btn-unlock" type="button">
+          Khóa chuột
+        </button>
+        <button class="hud-chip hud-chip--button" id="btn-log" type="button">Nhật ký</button>
+      </div>
+    </div>
+
+    <!-- Loading / errors -->
+    <div id="loading" class="overlay" hidden>
+      <div class="overlay-card">
+        <h2 id="loading-title">Đang chuẩn bị…</h2>
+        <div class="progress"><div class="progress-bar" id="progress-bar"></div></div>
+        <p class="progress-text" id="progress-text">0%</p>
+        <pre class="loading-log" id="loading-log"></pre>
+      </div>
+    </div>
+
+    <!-- Pause menu: Hướng dẫn / Cài đặt / Phím / Server -->
+    <div id="pause" class="overlay overlay--blur" hidden>
+      <div class="overlay-card overlay-card--menu">
+        <h2>Đang tạm dừng</h2>
+
+        <div class="tabs">
+          <button class="tab tab--active" id="tab-btn-guide" type="button">Hướng dẫn</button>
+          <button class="tab" id="tab-btn-settings" type="button">Cài đặt</button>
+          <button class="tab" id="tab-btn-binds" type="button">Phím</button>
+          <button class="tab" id="tab-btn-server" type="button">Server</button>
+        </div>
+
+        <div id="pane-guide" class="tabpane"></div>
+        <div id="pane-settings" class="tabpane" hidden></div>
+        <div id="pane-binds" class="tabpane" hidden>
+          <p class="pane-hint">
+            Click ô phím rồi nhấn phím mới — nhận cả <b>nút chuột</b> và <b>lăn scroll</b>. Mỗi
+            hành động gán được <b>tối đa 2 phím</b> (vd: Nhảy = space + lăn lên). <kbd>ESC</kbd> huỷ,
+            <kbd>×</kbd> gỡ phím. Hai hành động trùng phím: phím cũ được gỡ.
+          </p>
+          <div id="bind-grid" class="bind-grid"></div>
+          <button id="btn-binds-reset" class="btn btn--ghost btn--small" type="button">
+            Đặt lại phím mặc định
+          </button>
+          <button id="btn-console" class="btn btn--ghost btn--small" type="button" title="Bật console của engine (bind/cvar bất kỳ)">
+            Mở console engine
+          </button>
+        </div>
+        <div id="pane-server" class="tabpane" hidden>
+          <p class="pane-hint" id="server-note">
+            Preset và map áp cho <b>cả phòng</b> — mọi người trong phòng sẽ thấy.
+          </p>
+          <div id="owner-controls" class="owner-controls" hidden>
+            <div class="setting-row">
+              <span>Số bot</span>
+              <button class="btn btn--small" id="btn-bot-minus" type="button">−</button>
+              <span class="value-chip" id="bots-count">0</span>
+              <button class="btn btn--small" id="btn-bot-plus" type="button">+</button>
+            </div>
+            <div class="setting-row setting-row--col">
+              <span>Cài map từ URL (.zip / .rar / .bsp — GameBanana: dán link trang mod)</span>
+              <input id="map-url" placeholder="https://gamebanana.com/mods/96966 hoặc link trực tiếp" />
+              <div class="install-row">
+                <input id="map-name" placeholder="ten_map" />
+                <button class="btn btn--small" id="btn-install" type="button">Cài</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span>Phòng</span>
+              <button class="btn btn--small btn--ghost" id="btn-close-room" type="button">Đóng phòng</button>
+            </div>
+          </div>
+          <div id="preset-list" class="preset-list"></div>
+          <div class="divider"></div>
+          <div id="map-list" class="map-list"><span class="pane-hint">đang nạp map…</span></div>
+          <button id="btn-restart" class="btn btn--small" type="button">Restart ván hiện tại</button>
+          <p class="hint" id="owner-hint" hidden>Chỉ chủ phòng mới sửa được phòng này.</p>
+        </div>
+
+        <div class="pause-actions">
+          <button id="btn-resume" class="btn btn--primary" type="button">Tiếp tục</button>
+          <button id="btn-toggle-fs" class="btn" type="button">Bật/tắt toàn màn hình</button>
+          <button id="btn-leave" class="btn btn--ghost" type="button">Về dashboard</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console log drawer -->
+    <aside id="logpanel" class="logpanel" hidden>
+      <header>
+        <span>Nhật ký engine</span>
+        <button id="btn-log-close" class="linklike" type="button">đóng</button>
+      </header>
+      <pre id="logbuffer"></pre>
+    </aside>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

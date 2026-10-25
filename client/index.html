@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>CS 1.6 LAN — Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="dash-body">
+    <header class="dash-header">
+      <div class="brand">
+        <span class="brand-mark">CS</span>
+        <div>
+          <h1>CS 1.6 LAN Party</h1>
+          <p class="brand-sub">Chơi ngay trong trình duyệt · không cần cài gì</p>
+        </div>
+      </div>
+      <label class="nick-box">
+        <span>Tên của bạn</span>
+        <input id="nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="player" />
+      </label>
+    </header>
+
+    <main class="dash">
+      <section class="panel rooms-panel">
+        <div class="panel-head">
+          <h2>Phòng đang mở</h2>
+          <span class="count-chip" id="rooms-count">…</span>
+          <button id="btn-refresh" class="icon-btn" type="button" title="Làm mới">⟳</button>
+        </div>
+        <div id="rooms" class="room-grid">
+          <div class="empty-state">đang nạp…</div>
+        </div>
+      </section>
+
+      <aside class="panel create-panel">
+        <h2 class="panel-title">Tạo phòng mới</h2>
+
+        <label class="field" for="room-name">
+          <span>Tên phòng</span>
+          <input id="room-name" maxlength="32" placeholder="Phòng 5v5 casual" />
+        </label>
+
+        <label class="field" for="room-map">
+          <span>Map khởi đầu</span>
+          <select id="room-map"></select>
+        </label>
+
+        <div class="grid2">
+          <label class="field" for="room-max">
+            <span>Số người</span>
+            <input id="room-max" type="number" min="2" max="16" value="16" />
+          </label>
+          <label class="field" for="room-bots">
+            <span>Bot (mặc định 0)</span>
+            <input id="room-bots" type="number" min="0" max="8" value="0" />
+          </label>
+        </div>
+
+        <label class="field" for="room-password">
+          <span>Mật khẩu phòng (tuỳ chọn)</span>
+          <input id="room-password" autocomplete="off" placeholder="để trống nếu phòng mở" />
+        </label>
+
+        <button id="btn-create" class="btn btn--primary" type="button">Tạo phòng</button>
+
+        <p class="hint">
+          Người tạo là <b>chủ phòng</b>: đổi map, thêm/bớt bot, đóng phòng — tất cả ở menu
+          <kbd>ESC</kbd> → tab <b>Server</b> trong game.
+        </p>
+      </aside>
+    </main>
+
+    <footer class="dash-footer">
+      <span id="build-info">web-cs dashboard</span>
+      <span class="dot-sep">·</span>
+      <span id="server-hint">Server tự đóng phòng trống sau 30 phút</span>
+    </footer>
+
+    <aside id="logpanel" class="logpanel" hidden>
+      <header>
+        <span>Nhật ký</span>
+        <button id="btn-log-close" class="linklike" type="button">đóng</button>
+      </header>
+      <pre id="logbuffer"></pre>
+    </aside>
+
+    <script type="module" src="/src/dashboard.ts"></script>
+  </body>
+</html>

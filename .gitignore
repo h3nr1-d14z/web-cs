@@ -1,0 +1,17 @@
+# deps & build output
+node_modules/
+client/dist/
+server/dist/
+
+# local tooling (portable node, downloaded artifacts)
+.tools/
+.cache/
+
+# local env
+.env
+
+# editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

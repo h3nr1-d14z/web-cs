@@ -1,0 +1,13 @@
+# Keep the build context small: Docker only needs sources, not local deps.
+.git
+.gitignore
+.tools
+.cache
+node_modules
+**/node_modules
+client/dist
+server/dist
+*.log
+.env
+README.md
+docs
