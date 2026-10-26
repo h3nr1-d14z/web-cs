@@ -210,6 +210,7 @@ npx vite                               # dev server :5173, proxy /api,/ws sang s
 
 # kiểm tra bridge không cần game server
 node ../scripts/smoke-test.mjs
+node ../scripts/smoke-remote.mjs      # nhánh Docker: supervisor + proxy + tunnel (cần python3)
 ```
 
 Cấu trúc:
@@ -275,6 +276,7 @@ trong DevTools.
 |---|---|
 | `tsc --noEmit` + `vite build` | ✅ pass |
 | Static/ETag/gzip/SPA + tunnel WS↔UDP | ✅ `scripts/smoke-test.mjs` |
+| Nhánh Docker (supervisor + proxy + WS bridge, `GAME_MGR`), **không cần Docker** | ✅ `scripts/smoke-remote.mjs` |
 | Engine wasm + client/menu DLL trong Chrome | ✅ boot, mount **255 MB dạng pk3 trong ~60 ms** (không còn giải nén 464 MB vào MEMFS) |
 | Tải `game.zip` từ server | ✅ có progress, cache theo ETag |
 | Handshake GoldSrc protocol 48 qua tunnel | ✅ `server 127.0.0.1:27015` |

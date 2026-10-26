@@ -31,3 +31,8 @@ jobs:
         run: node scripts/smoke-test.mjs
         env:
           SMOKE_PUBLIC_DIR: client/dist
+
+      - name: "Smoke test (Docker branch: supervisor + proxy + tunnel)"
+        run: node scripts/smoke-remote.mjs
+        env:
+          SMOKE_PUBLIC_DIR: client/dist
