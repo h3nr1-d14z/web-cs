@@ -15,7 +15,7 @@ RUN test -f vendor/client_emscripten_wasm32.wasm || \
 RUN npm run build
 
 FROM node:22-alpine AS runtime
-# 7zz d�ng d? gi?i n�n .rar khi c�i map t? URL
+# 7zz dùng để giải nén .rar khi cài map từ URL
 RUN apk add --no-cache 7zip
 ENV NODE_ENV=production
 WORKDIR /app

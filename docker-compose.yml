@@ -52,7 +52,7 @@ services:
       ROOMS_FILE: /data/rooms.json
       LISTEN_PORT: "7000"
       UDP_BASE: "27015"
-      EMPTY_TTL: "1800"
+      EMPTY_TTL: ${EMPTY_TTL:-1800}
       RCON_PASSWORD: ${RCON_PASSWORD:-doi-mat-khau-nay}
       KZ_MODE: ${KZ_MODE:-0}
     volumes:
