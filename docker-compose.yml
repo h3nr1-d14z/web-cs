@@ -12,10 +12,15 @@ name: web-cs
 # need extra work for direct UDP peer traffic).
 #
 # Mọi service khai báo `dns:` công cộng: VPN kiểu NetBird ghi đè
-# /etc/resolv.conf của host, khiến container nhận 127.0.0.1 cho mọi tên công
+# /etc/resolv.conf của host, khiến container nhận 127.0.0.1/::1 cho tên công
 # cộng — SteamCMD (job assets) và YaPB (tải graph map) sẽ chết vì "offline".
 # `dns:` chỉ đổi upstream cho query ra ngoài; tên service nội bộ (game, web) vẫn
 # do DNS nội bộ của Docker trả lời.
+#
+# 8.8.8.8 đứng trước 1.1.1.1: Steam CDN dùng GeoDNS, và trên mạng của mình
+# Cloudflare trả một edge Akamai khác vùng (23.208.x) bị RST ngay sau
+# ClientHello, trong khi Google trả edge đúng (183.80.x). glibc chỉ hỏi nameserver
+# kế tiếp khi nameserver đầu *im lặng*, nên thứ tự quyết định.
 
 services:
   assets:
@@ -24,7 +29,7 @@ services:
       context: .
       dockerfile: docker/assets.Dockerfile
     image: web-cs-assets:latest
-    dns: [1.1.1.1, 8.8.8.8]
+    dns: [8.8.8.8, 1.1.1.1]
     environment:
       HLDS_APP_ID: "90"
     volumes:
@@ -38,7 +43,7 @@ services:
         - linux/386
     image: web-cs-game:latest
     platform: linux/386
-    dns: [1.1.1.1, 8.8.8.8]
+    dns: [8.8.8.8, 1.1.1.1]
     # `on-failure` (not unless-stopped) so a container that starts before the
     # assets job has run gives up after a few tries instead of restart-looping.
     restart: on-failure
@@ -67,7 +72,7 @@ services:
       dockerfile: docker/web.Dockerfile
     image: web-cs-web:latest
     restart: unless-stopped
-    dns: [1.1.1.1, 8.8.8.8]
+    dns: [8.8.8.8, 1.1.1.1]
     depends_on:
       - game
     environment:
