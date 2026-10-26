@@ -10,6 +10,12 @@ name: web-cs
 # Players only ever talk to `web`. UDP never leaves the Docker network, which is
 # why this works over NetBird (a WireGuard mesh that carries TCP fine but would
 # need extra work for direct UDP peer traffic).
+#
+# Mọi service khai báo `dns:` công cộng: VPN kiểu NetBird ghi đè
+# /etc/resolv.conf của host, khiến container nhận 127.0.0.1 cho mọi tên công
+# cộng — SteamCMD (job assets) và YaPB (tải graph map) sẽ chết vì "offline".
+# `dns:` chỉ đổi upstream cho query ra ngoài; tên service nội bộ (game, web) vẫn
+# do DNS nội bộ của Docker trả lời.
 
 services:
   assets:
@@ -18,6 +24,7 @@ services:
       context: .
       dockerfile: docker/assets.Dockerfile
     image: web-cs-assets:latest
+    dns: [1.1.1.1, 8.8.8.8]
     environment:
       HLDS_APP_ID: "90"
     volumes:
@@ -31,6 +38,7 @@ services:
         - linux/386
     image: web-cs-game:latest
     platform: linux/386
+    dns: [1.1.1.1, 8.8.8.8]
     # `on-failure` (not unless-stopped) so a container that starts before the
     # assets job has run gives up after a few tries instead of restart-looping.
     restart: on-failure
@@ -59,6 +67,7 @@ services:
       dockerfile: docker/web.Dockerfile
     image: web-cs-web:latest
     restart: unless-stopped
+    dns: [1.1.1.1, 8.8.8.8]
     depends_on:
       - game
     environment:

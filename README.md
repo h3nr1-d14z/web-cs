@@ -192,6 +192,7 @@ NetBird, hoặc game-streaming từ máy có GPU (mỗi người một session).
 |---|---|
 | Lobby báo “không phản hồi” | Container `game` chưa lên hoặc chưa có asset. `docker compose logs game` |
 | `/game.zip` trả 503 | Chưa chạy `docker compose --profile setup run --rm assets` |
+| `assets` báo *“Steamcmd needs to be online”* dù máy có internet | DNS của host bị VPN (NetBird…) ghi đè và trả `127.0.0.1` cho tên công cộng. Compose đã đặt `dns: 1.1.1.1/8.8.8.8` cho cả 3 service; nếu mạng chặn DNS công cộng thì sửa giá trị đó |
 | Tải xong nhưng màn hình đen | Kiểm tra WebGL: mở `chrome://gpu`, thử `--use-angle=default`; cập nhật driver/Chrome |
 | Vào được nhưng đứng ở “đang kết nối” | Mở **Nhật ký** (góc dưới lobby, hoặc `?debug=1`). Thường do WS bị proxy chặn hoặc `ACCESS_CODE` sai |
 | Ping cao bất thường | NetBird đang relay thay vì P2P: `netbird status -d`, mở UDP hoặc dùng peer gần |
