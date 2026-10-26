@@ -30,13 +30,17 @@ fi
 
 if ! have_tree; then
   echo "→ tải HLDS (app $APP_ID) qua SteamCMD… (~2 GB, một lần)"
+  # App 90 tải *engine* HLDS; thiếu `app_set_config ... mod cstrike` thì nó trả
+  # "Success" mà chỉ có valve/ + hlds_linux, không có cstrike/. SteamCMD cũng hay
+  # báo thành công khi còn thiếu file, nên kiểm tra file mới là điều kiện dừng.
   attempt=1
   while [ "$attempt" -le 3 ]; do
     if "$STEAMCMD" \
         +force_install_dir "$STAGE" \
         +login anonymous \
+        +app_set_config "$APP_ID" mod cstrike \
         +app_update "$APP_ID" validate \
-        +quit; then
+        +quit && [ -f "$STAGE/cstrike/liblist.gam" ]; then
       break
     fi
     echo "  lần $attempt thất bại, thử lại sau 5s…"
