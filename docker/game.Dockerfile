@@ -7,7 +7,9 @@ FROM i386/debian:bookworm-slim
 
 ARG XASH_TAG=continuous
 ARG REGAMEDLL_VERSION=5.30.0.814
-ARG YAPB_VERSION=4.8.1351
+# Tag `continuous` là rolling: tên asset chứa version nên đổi mỗi release —
+# build 404 ở bước YaPB thì bump số này theo asset mới nhất.
+ARG YAPB_VERSION=4.8.1354
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 libgcc-s1 zlib1g tar unzip xz-utils python3 \
@@ -43,7 +45,7 @@ RUN curl -fsSL -o /tmp/metamod.tar.xz \
  && mkdir -p /opt/metamod \
  && tar -xJf /tmp/metamod.tar.xz -C /opt/metamod \
  && rm /tmp/metamod.tar.xz \
- && test -f /opt/metamod/metamod_i386.so \
+ && test -f /opt/metamod/addons/metamod/dlls/metamod.so \
  && curl -fsSL -o /tmp/amxx-base.tar.gz \
       "https://github.com/alliedmodders/amxmodx/releases/download/1.10.0.5487/amxmodx-1.10.0-git5487-base-linux.tar.gz" \
  && curl -fsSL -o /tmp/amxx-cstrike.tar.gz \

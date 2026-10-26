@@ -42,7 +42,7 @@ if [ "${KZ_MODE:-0}" = "1" ]; then
   mkdir -p "$ROOT/cstrike/addons/amxmodx/plugins"
   cp -f /opt/config/amxx-plugins/*.amxx "$ROOT/cstrike/addons/amxmodx/plugins/"
   mkdir -p "$ROOT/cstrike/addons/metamod/dlls"
-  cp -f /opt/metamod/metamod_i386.so "$ROOT/cstrike/addons/metamod/dlls/metamod_i386.so"
+  cp -f /opt/metamod/addons/metamod/dlls/metamod.so "$ROOT/cstrike/addons/metamod/dlls/metamod_i386.so"
   printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$ROOT/cstrike/addons/metamod/plugins.ini"
   printf '[config]\ngamedll_linux dlls/cs.so\n' > "$ROOT/cstrike/addons/metamod/config.ini"
   sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod_i386.so"#' "$ROOT/cstrike/liblist.gam"
