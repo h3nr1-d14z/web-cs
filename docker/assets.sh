@@ -88,8 +88,13 @@ cp -f /opt/config/liblist.gam "$OUT/cstrike/liblist.gam"
 echo "→ nén cho browser (pk3 layout: pk3 nằm trong từng gamedir + manifest thật)"
 cd "$OUT"
 rm -f game.zip
+rm -f valve.pk3 cstrike.pk3 valve/valve.pk3 cstrike/cstrike.pk3
 (cd valve && zip -1 -rq ../valve.pk3 . -x 'maps/*' -x 'media/*' -x 'overviews/*' -x 'dlls/*' -x 'logs/*')
 (cd cstrike && zip -1 -rq ../cstrike.pk3 . -x 'dlls/*' -x 'logs/*' -x 'server.cfg' -x 'motd.txt')
+# Engine trong browser quét pk3 theo *gamedir* (/rodir/valve/*.pk3), nên gói phải
+# nằm trong valve/ và cstrike/ — đặt ở root thì client nạp 0 gói.
+mv -f valve.pk3 valve/valve.pk3
+mv -f cstrike.pk3 cstrike/cstrike.pk3
 # Outer zip là STORE (-0): bên trong đã deflate rồi.
 zip -0 -q game.zip valve/valve.pk3 cstrike/cstrike.pk3 cstrike/liblist.gam
 [ -f cstrike/delta.lst ] && zip -0 -q game.zip cstrike/delta.lst
