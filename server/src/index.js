@@ -196,6 +196,18 @@ async function applyPresetToRoom(room, presetName) {
   return preset.commands.length
 }
 
+/** Ở chế độ Docker, danh sách phòng nằm ở supervisor — không có bản sao cục bộ. */
+async function remoteRooms() {
+  try {
+    const response = await fetch(`${GAME_MGR}/rooms`)
+    if (!response.ok) return []
+    const payload = await response.json()
+    return payload?.rooms ?? []
+  } catch {
+    return []
+  }
+}
+
 /** Routes /api/* (trừ /game.zip, /healthz). */
 async function handleApi(request, response, url) {
   // Docker: phòng do supervisor quản.
@@ -210,7 +222,7 @@ async function handleApi(request, response, url) {
   // HUD trong game (?room=<id>): legacy shape cho client cũ/mới đều hiểu.
   if (url.pathname === '/api/status') {
     const requested = url.searchParams.get('room')
-    const rooms = listRooms()
+    const rooms = remoteMode ? await remoteRooms() : listRooms()
     const target = (requested && rooms.find((r) => r.id === requested)) || rooms[0]
     if (!target) return sendJson(response, 200, { online: false })
     return sendJson(response, 200, {

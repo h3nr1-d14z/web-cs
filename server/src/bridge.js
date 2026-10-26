@@ -33,21 +33,34 @@ export function attachBridge(ws, { host, port, label }) {
     close('udp-error')
   })
 
-  // Gói đến từ game server trước khi udp.connect() hoàn tất: đưa vào hàng đợi,
-  // flush ngay khi connect xong (GoldSrc signon bắn nhiều gói rất sớm).
+  // udp.send() chưa gọi được trước khi connect xong, mà GoldSrc bắn signon rất
+  // sớm — nên giữ hai hàng đợi riêng và flush đúng chiều khi connect.
   let linked = false
-  const early = []
+  const pendingFromClient = []
+  const earlyFromServer = []
   udp.on('connect', () => {
     linked = true
     log.info(`bridge ${label}: UDP -> ${host}:${port} (source ${udp.address().port})`)
-    early.splice(0).forEach((message) => {
+    for (const message of earlyFromServer.splice(0)) {
       if (ws.readyState === ws.OPEN) ws.send(message, { binary: true })
-    })
+    }
+    for (const packet of pendingFromClient.splice(0)) {
+      try {
+        udp.send(packet)
+      } catch (error) {
+        log.warn(`bridge ${label}: không gửi được gói: ${error.message}`)
+      }
+    }
   })
 
   udp.connect(port, host)
 
   udp.on('message', (message) => {
+    if (!linked) {
+      if (earlyFromServer.length > 128) earlyFromServer.shift()
+      earlyFromServer.push(message)
+      return
+    }
     if (ws.readyState !== ws.OPEN) return
     ws.send(message, { binary: true })
   })
@@ -56,8 +69,8 @@ export function attachBridge(ws, { host, port, label }) {
     if (typeof data === 'string') return
     if (closed) return
     if (!linked) {
-      early.push(Buffer.from(data))
-      if (early.length > 128) early.shift()
+      pendingFromClient.push(Buffer.from(data))
+      if (pendingFromClient.length > 128) pendingFromClient.shift()
       return
     }
     try {
