@@ -43,9 +43,10 @@ if ! have_tree; then
         +quit && [ -f "$STAGE/cstrike/liblist.gam" ]; then
       break
     fi
-    echo "  lần $attempt thất bại, thử lại sau 5s…"
+    echo "  lần $attempt thất bại, thử lại sau 60s…"
     attempt=$((attempt + 1))
-    sleep 5
+    # 5s là quá ngắn: khi Steam vừa trả lỗi throttle, retry ngay chỉ kéo dài cửa sổ.
+    sleep 60
   done
 
   if [ ! -f "$STAGE/cstrike/liblist.gam" ]; then
