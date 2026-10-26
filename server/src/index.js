@@ -144,7 +144,15 @@ async function proxyRooms(request, response, url) {
     throw new Error(`supervisor không trả lời: ${error.message}`)
   })
 
-  const payload = await upstream.text()
+  let payload = await upstream.text()
+  // Supervisor tự tính isOwner theo token phòng; mã admin toàn cục chỉ web biết.
+  if (request.method === 'GET' && upstream.ok && /^\/api\/rooms\/[\w-]+$/.test(url.pathname) && isRoomAdmin(request)) {
+    try {
+      payload = JSON.stringify({ ...JSON.parse(payload), isOwner: true })
+    } catch {
+      /* không phải JSON — trả nguyên văn */
+    }
+  }
   response.writeHead(upstream.status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
@@ -543,46 +551,75 @@ const server = http.createServer((request, response) => {
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 })
 
-server.on('upgrade', (request, socket, head) => {
-  const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
-
-  if (url.pathname !== '/ws') {
-    socket.destroy()
-    return
+/**
+ * Port UDP của phòng cho WS upgrade.
+ *
+ * Nhánh native: rooms-local giữ map phòng ngay trong process. Nhánh Docker:
+ * web chỉ proxy API nên không có bản sao danh sách — phải hỏi supervisor.
+ */
+async function resolveRoomPort(roomId) {
+  if (!remoteMode) {
+    const room = roomId ? getRoom(roomId) : listRooms()[0]
+    return room?.port ?? null
   }
+  const response = await fetch(GAME_MGR + (roomId ? `/rooms/${encodeURIComponent(roomId)}` : '/rooms'))
+  if (!response.ok) return null
+  const payload = await response.json()
+  const room = roomId ? payload : payload?.rooms?.[0]
+  return Number(room?.port) || null
+}
 
-  if (ACCESS_CODE && url.searchParams.get('code') !== ACCESS_CODE) {
-    log.warn('từ chối WS: sai mã truy cập')
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
-    socket.destroy()
-    return
-  }
+server.on('upgrade', async (request, socket, head) => {
+  try {
+    const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
 
-  if (connections >= MAX_CONNECTIONS) {
-    log.warn('từ chối WS: đã đạt MAX_CONNECTIONS')
-    socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n')
-    socket.destroy()
-    return
-  }
+    if (url.pathname !== '/ws') {
+      socket.destroy()
+      return
+    }
 
-  const roomId = url.searchParams.get('room')
-  const room = roomId ? getRoom(roomId) : listRooms()[0]
-  log.info(`WS upgrade: room=${roomId} found=${Boolean(room)}`)
-  if (!room) {
-    log.warn(`từ chối WS: phòng "${roomId ?? '(trống)'}" không tồn tại`)
-    socket.write('HTTP/1.1 404 Not Found\r\n\r\n')
-    socket.destroy()
-    return
-  }
+    if (ACCESS_CODE && url.searchParams.get('code') !== ACCESS_CODE) {
+      log.warn('từ chối WS: sai mã truy cập')
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+      socket.destroy()
+      return
+    }
 
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    connections += 1
-    const label = `${room.id}:${request.socket.remoteAddress}:${connections}`
-    ws.on('close', () => {
-      connections -= 1
+    if (connections >= MAX_CONNECTIONS) {
+      log.warn('từ chối WS: đã đạt MAX_CONNECTIONS')
+      socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n')
+      socket.destroy()
+      return
+    }
+
+    const roomId = url.searchParams.get('room')
+    const port = await resolveRoomPort(roomId).catch((error) => {
+      log.warn(`WS upgrade: không lấy được port phòng "${roomId ?? '(trống)'}": ${error.message}`)
+      return null
     })
-    attachBridge(ws, { host: GAME_HOST, port: room.port, label })
-  })
+    log.info(`WS upgrade: room=${roomId} port=${port}`)
+    if (!port) {
+      log.warn(`từ chối WS: phòng "${roomId ?? '(trống)'}" không tồn tại`)
+      if (!socket.destroyed) {
+        socket.write('HTTP/1.1 404 Not Found\r\n\r\n')
+        socket.destroy()
+      }
+      return
+    }
+    if (socket.destroyed) return
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      connections += 1
+      const label = `${roomId ?? `port-${port}`}:${request.socket.remoteAddress}:${connections}`
+      ws.on('close', () => {
+        connections -= 1
+      })
+      attachBridge(ws, { host: GAME_HOST, port, label })
+    })
+  } catch (error) {
+    log.warn(`WS upgrade lỗi: ${error.message}`)
+    if (!socket.destroyed) socket.destroy()
+  }
 })
 
 server.listen(PORT, '0.0.0.0', () => {

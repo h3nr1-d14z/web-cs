@@ -7,8 +7,9 @@ REST API nội bộ (web container gọi qua mạng Docker):
   GET    /rooms                → danh sách phòng + số người/bots
   POST   /rooms                → tạo phòng {name,map,maxplayers,password,bots}
                                   (trả ownerToken — chỉ trả 1 lần)
-  GET    /rooms/<id>           → chi tiết (kèm ownerToken khi header khớp)
-  PATCH  /rooms/<id>           → đổi map/password/bots/tên
+  POST   /rooms/<id>/preset    → áp preset từ presets.json (chủ phòng)
+  GET    /rooms/<id>           → chi tiết (isOwner=true khi header khớp)
+  PATCH  /rooms/<id>           → đổi map/password/bots/tên, {restart:true} để restart ván
   DELETE /rooms/<id>           → đóng phòng
 
 Trạng thái lưu /data/rooms.json; container restart sẽ tự spawn lại phòng.
@@ -33,6 +34,7 @@ XASH = os.environ.get("XASH", "/xashds/xash")
 GAME_DIR = os.environ.get("GAME_DIR", "/xashds")
 ROOMS_FILE = os.environ.get("ROOMS_FILE", "/data/rooms.json")
 RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "doi-mat-khau-nay")
+PRESETS_FILE = os.environ.get("PRESETS_FILE", "/opt/config/presets.json")
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "7000"))
 UDP_BASE = int(os.environ.get("UDP_BASE", "27015"))
 EMPTY_TTL = int(os.environ.get("EMPTY_TTL", str(30 * 60)))
@@ -64,13 +66,15 @@ def a2s_info(host, port, timeout=1.0):
     _, off = cstr(off)          # folder
     _, off = cstr(off)          # game
     off += 2                    # appid
-    players, bots = data[off], data[off + 1]
+    players, max_players = data[off], data[off + 1]
+    # bots là byte thứ ba của khối này; server cũ không có trường đó.
+    bots = data[off + 2] if len(data) > off + 2 else 0
     return {
         "online": True,
         "name": name,
         "map": mapname,
         "players": players,
-        "maxPlayers": data[off + 1],
+        "maxPlayers": max_players,
         "bots": bots,
     }
 
@@ -92,6 +96,15 @@ def rcon(port, password, command, timeout=2.0):
     except OSError as exc:
         raise RuntimeError(f"rcon lỗi: {exc}") from exc
     return "".join(chunks).strip()
+
+
+def load_presets():
+    try:
+        with open(PRESETS_FILE, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[supervisor] không đọc được presets: {exc}", flush=True)
+        return {}
 
 
 def free_port(rooms):
@@ -170,6 +183,8 @@ def rooms_map():
 
 
 def room_view(room, token=None):
+    # `port` cho web server: nhánh Docker không giữ bản sao danh sách phòng, nên
+    # WS upgrade phải hỏi supervisor đúng port của phòng.
     return {
         "id": room["id"],
         "name": room["name"],
@@ -177,14 +192,16 @@ def room_view(room, token=None):
         "maxplayers": room["maxplayers"],
         "hasPassword": bool(room["password"]),
         "bots": room["bots"],
+        "port": room["port"],
         "players": room["status"]["players"],
         "humans": room["status"]["humans"],
-        "ownerToken": room["owner_token"] if token and secrets.compare_digest(token, room["owner_token"]) else None,
+        "isOwner": is_owner(room, token),
     }
 
 
 def is_owner(room, token):
-    return bool(token) and secrets.compare_digest(token, room["owner_token"])
+    owner = room.get("owner_token")
+    return bool(token and owner) and secrets.compare_digest(token, owner)
 
 
 # ---------------------------------------------------------------- loops
@@ -220,6 +237,10 @@ def kill_room(rid):
     if not room:
         return False
     room["proc"].terminate()
+    try:
+        room["logf"].close()
+    except (OSError, ValueError):
+        pass
     persist()
     return True
 
@@ -284,8 +305,28 @@ class Handler(BaseHTTPRequestHandler):
             spawn_room(rid, spec)
             persist()
             self._json(200, room_view(ROOMS[rid], spec["owner_token"]) | {"ownerToken": spec["owner_token"]})
-        else:
-            self._json(404, {"error": "not-found"})
+            return
+
+        preset = re.match(r"^/rooms/([\w-]+)/preset$", path)
+        if preset:
+            room = ROOMS.get(preset.group(1))
+            if not room:
+                return self._json(404, {"error": "phòng không tồn tại"})
+            if not is_owner(room, self.headers.get("X-Room-Token")):
+                return self._json(401, {"error": "chỉ chủ phòng đổi preset được"})
+            name = str(body.get("name") or "")
+            commands = (load_presets().get(name) or {}).get("commands") or []
+            if not commands:
+                return self._json(404, {"error": "preset không tồn tại"})
+            try:
+                for command in commands:
+                    rcon(room["port"], RCON_PASSWORD, command)
+            except RuntimeError as exc:
+                return self._json(502, {"error": str(exc)})
+            print(f"[supervisor] room {room['id']}: preset {name} ({len(commands)} lệnh)", flush=True)
+            return self._json(200, {"ok": True, "applied": len(commands)})
+
+        self._json(404, {"error": "not-found"})
 
     def do_PATCH(self):
         path = urlparse(self.path).path
@@ -303,6 +344,8 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(length) or b"{}")
         try:
+            if body.get("restart"):
+                rcon(room["port"], RCON_PASSWORD, "sv_restart 1")
             if "map" in body and re.match(r"^[\w.-]+$", str(body["map"])):
                 rcon(room["port"], RCON_PASSWORD, f"changelevel {body['map']}")
                 room["map"] = body["map"]
