@@ -41,6 +41,10 @@ if [ "${KZ_MODE:-0}" = "1" ]; then
   cp -a /opt/amxx/addons/amxmodx/modules "$ROOT/cstrike/addons/amxmodx/"
   mkdir -p "$ROOT/cstrike/addons/amxmodx/plugins"
   cp -f /opt/config/amxx-plugins/*.amxx "$ROOT/cstrike/addons/amxmodx/plugins/"
+  # AMXX chỉ nạp plugin được liệt kê ở đây — copy file .amxx vào plugins/ là chưa đủ.
+  for plugin in /opt/config/amxx-plugins/*.amxx; do
+    printf '%s\n' "$(basename "$plugin")"
+  done > "$ROOT/cstrike/addons/amxmodx/configs/plugins.ini"
   mkdir -p "$ROOT/cstrike/addons/metamod/dlls"
   cp -f /opt/metamod/addons/metamod/dlls/metamod.so "$ROOT/cstrike/addons/metamod/dlls/metamod_i386.so"
   printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$ROOT/cstrike/addons/metamod/plugins.ini"
