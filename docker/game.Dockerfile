@@ -9,7 +9,11 @@ ARG XASH_TAG=continuous
 ARG REGAMEDLL_VERSION=5.30.0.814
 # Tag `continuous` là rolling: tên asset chứa version nên đổi mỗi release —
 # build 404 ở bước YaPB thì bump số này theo asset mới nhất.
-ARG YAPB_VERSION=4.8.1354
+# Nên bám tag version thật (asset của tag đó không bị thay): 4.4.957 là bản
+# stable mới nhất. Muốn bản mới hơn thì `--build-arg YAPB_TAG=continuous
+# --build-arg YAPB_VERSION=<số trong tên asset>`.
+ARG YAPB_TAG=4.4.957
+ARG YAPB_VERSION=4.4.957
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 libgcc-s1 zlib1g tar unzip xz-utils python3 \
@@ -32,7 +36,7 @@ RUN curl -fsSL -o /tmp/regamedll.zip \
 # YaPB: bot open-source (standalone plugin — engine nạp nó qua liblist, nó tự
 # chain tới ReGameDLL dlls/cs.so; graph từng map tải qua HTTPS khi chơi).
 RUN curl -fsSL -o /tmp/yapb.tar.xz \
-      "https://github.com/yapb/yapb/releases/download/continuous/yapb-${YAPB_VERSION}-linux.tar.xz" \
+      "https://github.com/yapb/yapb/releases/download/${YAPB_TAG}/yapb-${YAPB_VERSION}-linux.tar.xz" \
  && mkdir -p /opt/yapb \
  && tar -xJf /tmp/yapb.tar.xz -C /opt/yapb \
  && rm /tmp/yapb.tar.xz \
