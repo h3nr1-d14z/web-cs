@@ -21,6 +21,7 @@ import {
 import { rconCommand } from './rcon.js'
 import {
   isGoldSrcBsp,
+  isRar,
   isZip,
   extractArchive,
   loadCustomFiles,
@@ -367,8 +368,8 @@ async function handleApi(request, response, url) {
       let bspFiles = {}
       if (isGoldSrcBsp(buffer)) {
         extracted[`${name}.bsp`] = buffer
-      } else if (isZip(buffer) || buffer.subarray(0, 7).equals(Buffer.from('Rar!\x1a\x07'))) {
-        extracted = await extractArchive(buffer, name)
+      } else if (isZip(buffer) || isRar(buffer)) {
+        extracted = await extractArchive(buffer)
         log.info(`extract: ${Object.keys(extracted).length} file từ archive`)
         for (const [base, data] of Object.entries(extracted)) {
           if (!base.endsWith('.bsp')) continue

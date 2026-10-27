@@ -15,8 +15,9 @@ RUN test -f vendor/client_emscripten_wasm32.wasm || \
 RUN npm run build
 
 FROM node:22-alpine AS runtime
-# 7zz dùng để giải nén .rar khi cài map từ URL
-RUN apk add --no-cache 7zip
+# Giải nén .rar khi cài map từ URL: 7zz thường đủ, bsdtar (libarchive) là fallback
+# cho các archive rar4 mà 7-Zip từ chối mở.
+RUN apk add --no-cache 7zip libarchive-tools
 ENV NODE_ENV=production
 WORKDIR /app
 

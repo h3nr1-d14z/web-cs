@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { unzipSync, zipSync } from 'fflate'
 import { log } from './logger.js'
@@ -16,10 +17,11 @@ import { log } from './logger.js'
  *   GET /custom.pk3            → client tải (ETag, 304 khi không đổi)
  */
 
+// Magic rar là "Rar!\x1a\x07\x00" (7 byte); so 6 byte đầu là đủ và tránh lệch độ dài.
 const RAR_MAGIC = Buffer.from('Rar!\x1a\x07')
 
 export function isRar(buffer) {
-  return buffer.subarray(0, 7).equals(RAR_MAGIC)
+  return buffer.subarray(0, RAR_MAGIC.length).equals(RAR_MAGIC)
 }
 
 export function isZip(buffer) {
@@ -50,7 +52,7 @@ function run(tool, args) {
  * Trả về map tên-file(gamedir-relative) → bytes, giữ TOÀN BỘ tài nguyên
  * (bsp, mdl, wad, res, sound, sprites, overviews…) để map custom chơi đủ.
  */
-export async function extractArchive(buffer, archiveName) {
+export async function extractArchive(buffer) {
   if (isZip(buffer)) {
     const entries = unzipSync(buffer)
     const picked = {}
@@ -67,11 +69,12 @@ export async function extractArchive(buffer, archiveName) {
       '7z',
       '7zz',
       'unrar',
+      'bsdtar',
       'C:\\Program Files\\7-Zip\\7z.exe',
       'C:\\Program Files (x86)\\7-Zip\\7z.exe',
     ].filter(Boolean)
 
-    const tmpDir = path.join(path.dirname(archiveName), `extract-${Date.now()}`)
+    const tmpDir = path.join(os.tmpdir(), `webcs-extract-${Date.now()}`)
     await mkdir(tmpDir, { recursive: true })
     const archivePath = tmpDir + '.rar'
     await writeFile(archivePath, buffer)
@@ -81,20 +84,24 @@ export async function extractArchive(buffer, archiveName) {
       try {
         const args = tool.endsWith('unrar')
           ? ['x', '-o+', archivePath, tmpDir + path.sep]
-          : ['x', `-o${tmpDir}`, archivePath, '-y']
+          : tool.endsWith('bsdtar')
+            ? ['-xf', archivePath, '-C', tmpDir]
+            : ['x', `-o${tmpDir}`, archivePath, '-y']
         await run(tool, args)
         const picked = {}
         for (const full of await readdirRecursive(tmpDir)) {
           const rel = path.relative(tmpDir, full).split(path.sep).join('/')
           picked[rel] = await readFile(full)
         }
+        await rm(tmpDir, { recursive: true, force: true })
         return picked
       } catch (error) {
         lastError = error.message
       }
     }
+    await rm(tmpDir, { recursive: true, force: true })
     throw new Error(
-      `File là .rar — cần 7-Zip hoặc UnRAR để giải nén (lỗi cuối: ${lastError}). ` +
+      `File là .rar — cần 7-Zip, UnRAR hoặc bsdtar để giải nén (lỗi cuối: ${lastError}). ` +
         'Cài 7-Zip rồi đặt RAR_TOOL=đường_dẫn_7z nếu cần.',
     )
   }
