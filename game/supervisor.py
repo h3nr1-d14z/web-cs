@@ -418,6 +418,7 @@ class Handler(BaseHTTPRequestHandler):
         if not is_owner(room, self.headers.get("X-Room-Token")):
             return self._json(401, {"error": "chỉ chủ phòng đóng được phòng"})
         kill_room(rid)
+        print(f"[supervisor] room {rid}: đóng theo yêu cầu", flush=True)
         self._json(200, {"ok": True})
 
 
