@@ -705,7 +705,7 @@ async function startGame(): Promise<void> {
       showTab(first ? 'guide' : 'settings')
     }, 400)
 
-    started.transport.onState = (state) => {
+    const onTransportState = (state: 'connecting' | 'open' | 'closed'): void => {
       if (state === 'open') {
         ui.hudNet.textContent = everOpened ? 'đã nối lại — đang vào server' : 'đang vào server…'
         ui.hudNet.className = 'hud-chip'
@@ -721,14 +721,23 @@ async function startGame(): Promise<void> {
       if (state === 'closed' && session) {
         connected = false
         stopRetry()
-        ui.hudNet.textContent = 'mất kết nối — đang thử lại'
+        ui.hudNet.textContent = localStorage.getItem(STORE_CODE)?.trim()
+          ? 'mất kết nối — đang thử lại'
+          : 'mất kết nối — thiếu mã vào (nhập ở dashboard)'
         ui.hudNet.className = 'hud-chip hud-chip--bad'
-        window.setTimeout(() => {
-          if (!session) return
-          started.transport.reconnect()
-        }, 1200)
+        // Chỉ tự nối lại khi từng vào được; lỗi lúc mở (vd. 401 vì thiếu mã) thì
+        // để retryLoop thưa hơn xử lý, tránh spam 1 req/1.2s.
+        if (everOpened) {
+          window.setTimeout(() => {
+            if (!session) return
+            started.transport.reconnect()
+          }, 1200)
+        }
       }
     }
+    started.transport.onState = onTransportState
+    // WS có thể đã chết trước khi gắn hook — bắt kịp để báo đúng lý do ngay.
+    if (started.transport.state === 'closed') onTransportState('closed')
 
     log.subscribe((line) => {
       if (!session) return
@@ -773,6 +782,9 @@ function retryLoop(): void {
     return
   }
   attempts += 1
+  // Chỉ nối lại WS khi nó đã chết: reconnect một socket đang mở sẽ cắt ngang
+  // quá trình signon của engine. `connect` phía engine thì luôn gửi lại.
+  if (session.transport.state !== 'open') session.transport.reconnect()
   session.connect()
   retryTimer = window.setTimeout(retryLoop, 5000)
 }
@@ -887,6 +899,10 @@ function main(): void {
   if (!roomId) {
     log.push('boot', 'Không có ?room= — sẽ vào phòng đầu tiên nếu có.')
   }
+
+  // Link play share kèm ?code=: nhớ luôn cho các lần vào sau.
+  const urlCode = new URLSearchParams(location.search).get('code')?.trim()
+  if (urlCode) localStorage.setItem(STORE_CODE, urlCode)
 
   void refreshStatus()
   startStatusPolling()

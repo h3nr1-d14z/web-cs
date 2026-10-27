@@ -23,6 +23,12 @@
   font-size: 17px;
 }
 
+.nick-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .nick-box {
   display: flex;
   align-items: center;

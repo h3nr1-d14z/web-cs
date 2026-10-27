@@ -22,11 +22,19 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const roomsEl = $<HTMLElement>('rooms')
 const roomsCount = $<HTMLElement>('rooms-count')
 const nickInput = $<HTMLInputElement>('nick')
+const codeInput = $<HTMLInputElement>('access-code')
 const mapSelect = $<HTMLSelectElement>('room-map')
 const modeSelect = $<HTMLSelectElement>('room-mode')
 const mapHint = $<HTMLElement>('map-hint')
 
 const STORE_NICK = 'webcs.nick'
+const STORE_CODE = 'webcs.code'
+
+/** Link play mang theo mã vào để người được share link không phải nhập lại. */
+function playUrl(roomId: string): string {
+  const code = localStorage.getItem(STORE_CODE)?.trim()
+  return `/play.html?room=${encodeURIComponent(roomId)}${code ? `&code=${encodeURIComponent(code)}` : ''}`
+}
 
 interface Preset {
   label: string
@@ -148,7 +156,7 @@ function renderRooms(rooms: Room[]): void {
     join.textContent = 'Vào →'
     join.addEventListener('click', () => {
       localStorage.setItem(STORE_NICK, nickInput?.value.trim() || localStorage.getItem(STORE_NICK) || 'player')
-      location.href = `/play.html?room=${encodeURIComponent(room.id)}`
+      location.href = playUrl(room.id)
     })
 
     card.append(tile, body, join)
@@ -215,7 +223,7 @@ async function createRoom(): Promise<void> {
       bots: Number($<HTMLInputElement>('room-bots').value) || 0,
     })
     if (created.id && created.ownerToken) rememberOwner(created.id, created.ownerToken)
-    location.href = `/play.html?room=${encodeURIComponent(created.id)}`
+    location.href = playUrl(created.id)
   } catch (error) {
     button.disabled = false
     button.textContent = 'Tạo phòng'
@@ -228,6 +236,11 @@ function main(): void {
   if (nick) nickInput.value = nick
   nickInput.addEventListener('input', () => {
     localStorage.setItem(STORE_NICK, nickInput.value.trim())
+  })
+
+  codeInput.value = localStorage.getItem(STORE_CODE) ?? ''
+  codeInput.addEventListener('input', () => {
+    localStorage.setItem(STORE_CODE, codeInput.value.trim())
   })
 
   void loadOptions()

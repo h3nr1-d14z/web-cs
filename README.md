@@ -134,7 +134,7 @@ trong pool của dashboard lẫn tab Server.
 | `MAP` | `de_dust2` | Map đầu tiên (phải có trong `cstrike/maps`) |
 | `MAXPLAYERS` | `16` | Số slot |
 | `WEB_PORT` | `27016` | Cổng trên host |
-| `ACCESS_CODE` | rỗng | Nếu đặt, lobby bắt buộc nhập mã mới vào được |
+| `ACCESS_CODE` | rỗng | Nếu đặt, phải nhập mã ở ô **Mã vào** trên dashboard mới vào được; link play `?code=...` tự mang mã |
 
 Luật chơi: `config/server.cfg` (giá trị CS 1.6 gốc: `mp_startmoney 800`, `mp_roundtime 3`,
 `mp_freezetime 3`…). Sửa xong `docker compose restart game`.
