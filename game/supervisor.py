@@ -124,6 +124,12 @@ def apply_mode(room):
     `yb_quota` gửi sau cùng để ô "Bot" ở dashboard luôn thắng preset."""
     presets = load_presets()
     name = room.get("preset") or preset_for_map(room["map"])
+    if not rcon(room["port"], RCON_PASSWORD, "status"):
+        print(
+            f"[supervisor] room {room['id']}: RCON không phản hồi — sai rcon_password? "
+            "(đừng đặt rcon_password trong server.cfg, nó đè +rcon_password)",
+            flush=True,
+        )
     for command in (presets.get(name) or {}).get("commands") or []:
         rcon(room["port"], RCON_PASSWORD, command)
     rcon(room["port"], RCON_PASSWORD, f"yb_quota {room['bots']}")
