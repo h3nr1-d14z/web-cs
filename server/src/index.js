@@ -1,6 +1,6 @@
 import http from 'node:http'
 import { createReadStream } from 'node:fs'
-import { stat, readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
+import { stat, readdir, readFile, mkdir, writeFile, rename } from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { createGzip } from 'node:zlib'
@@ -136,6 +136,9 @@ async function proxyRooms(request, response, url) {
   const headers = { 'x-room-token': request.headers['x-room-token'] ?? '' }
   let body
   if (request.method !== 'GET') body = await readBody(request)
+  if (body?.map !== undefined && !(await mapInstalled(body.map))) {
+    return sendJson(response, 400, { error: `map "${body.map}" chưa có trên server` })
+  }
 
   const upstream = await fetch(upstreamUrl, {
     method: request.method,
@@ -175,6 +178,11 @@ async function listMaps() {
     .filter((name) => name.endsWith('.bsp'))
     .map((name) => name.slice(0, -4))
     .sort()
+}
+
+/** Tên map phải có .bsp trên server, nếu không phòng boot vào map mặc định mà vẫn trả 200. */
+async function mapInstalled(name) {
+  return (await listMaps()).includes(String(name))
 }
 
 async function loadPresets() {
@@ -251,6 +259,9 @@ async function handleApi(request, response, url) {
 
   if (url.pathname === '/api/rooms' && method === 'POST') {
     const body = await readBody(request)
+    if (body.map !== undefined && !(await mapInstalled(body.map))) {
+      return sendJson(response, 400, { error: `map "${body.map}" chưa có trên server` })
+    }
     try {
       const created = await createRoom({
         name: body.name,
@@ -300,6 +311,9 @@ async function handleApi(request, response, url) {
       if (!target) return sendJson(response, 404, { error: 'phòng không tồn tại' })
       if (!isRoomAdmin(request, target)) return deny(response)
       const body = await readBody(request)
+      if (body.map !== undefined && !(await mapInstalled(body.map))) {
+        return sendJson(response, 400, { error: `map "${body.map}" chưa có trên server` })
+      }
       if (body.restart) await rconCommand('127.0.0.1', target.port, RCON_PASSWORD, 'sv_restart 1')
       const view = await patchRoom(target.id, body)
       return sendJson(response, 200, view)
@@ -415,7 +429,11 @@ async function handleApi(request, response, url) {
     }
     log.info(`pack debug: bspFiles=${Object.keys(bspFiles).length} customFiles=${Object.keys(customFiles).length}`)
     const { packed, version } = packCustomPk3(customFiles)
-    await writeFile(CUSTOM_PK3, packed)
+    // Ghi qua file tạm rồi rename: client đang tải /custom.pk3 sẽ thấy bản cũ
+    // trọn vẹn, không bao giờ nhận file cụt giữa lúc cài map.
+    const tmpPk3 = `${CUSTOM_PK3}.tmp`
+    await writeFile(tmpPk3, packed)
+    await rename(tmpPk3, CUSTOM_PK3)
     await writeFile(path.join(ASSETS_DIR, 'custom.version'), version + '\n')
     log.info(`installed maps: ${installed.join(', ')} (custom.pk3 ${version})`)
 

@@ -7,26 +7,29 @@ export interface DownloadProgress {
 }
 
 const GAME_CACHE = 'webcs-game-v1'
+const CUSTOM_CACHE = 'webcs-custom-v1'
 
 /**
- * Fetch the game bundle. The server serves it with an ETag, so a repeat visit
- * revalidates cheaply instead of moving 200 MB again.
+ * Fetch a large file, then keep the bytes in Cache Storage and revalidate with
+ * a cheap HEAD next time.
  *
  * The HTTP cache alone is not enough: browsers refuse to store a single
- * response much larger than ~40 MB, so a 260 MB zip always misses and gets
- * re-downloaded. Cache Storage has no such cap — keep the bytes there and
- * compare the ETag with a cheap HEAD.
+ * response much larger than ~40 MB, so a 260 MB zip (or the 40+ MB custom.pk3)
+ * always misses and gets re-downloaded. Cache Storage has no such cap — keep
+ * the bytes there and compare the ETag.
  */
-export async function downloadGameZip(
+export async function downloadCached(
   url: string,
+  cacheName: string,
   onProgress: (progress: DownloadProgress) => void,
 ): Promise<Uint8Array> {
-  const cache = typeof caches === 'undefined' ? null : await caches.open(GAME_CACHE)
-  const stored = (await cache?.match(url)) ?? null
+  const abs = new URL(url, location.href).href
+  const cache = typeof caches === 'undefined' ? null : await caches.open(cacheName)
+  const stored = (await cache?.match(abs)) ?? null
   let etag = ''
   let reachable = false
   try {
-    const head = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+    const head = await fetch(abs, { method: 'HEAD', cache: 'no-store' })
     reachable = head.ok
     etag = head.headers.get('etag') ?? ''
   } catch {
@@ -38,7 +41,7 @@ export async function downloadGameZip(
     return bytes
   }
 
-  const response = await fetch(url, { cache: 'no-cache' })
+  const response = await fetch(abs, { cache: 'no-cache' })
   if (!response.ok) {
     throw new Error(`Không tải được ${url} (HTTP ${response.status})`)
   }
@@ -47,10 +50,14 @@ export async function downloadGameZip(
   const keep = async (buffer: Uint8Array<ArrayBuffer>): Promise<Uint8Array> => {
     if (cache) {
       const tag = etag || response.headers.get('etag') || ''
-      // Ghi cache hỏng = lần sau tải lại 260 MB, nên đừng nuốt lỗi im lặng.
+      // Ghi cache hỏng = lần sau tải lại hàng trăm MB, nên đừng nuốt lỗi im lặng.
       await cache
-        .put(url, new Response(buffer, { headers: { 'x-etag': tag } }))
+        .put(abs, new Response(buffer, { headers: { 'x-etag': tag } }))
         .catch((error) => log.push('assets', `không lưu được cache: ${error}`))
+      // Bản của version trước chiếm chỗ vô ích (mỗi bản pk3 vài chục MB).
+      for (const request of await cache.keys().catch(() => [])) {
+        if (request.url !== abs) await cache.delete(request).catch(() => {})
+      }
     }
     return buffer
   }
@@ -80,6 +87,22 @@ export async function downloadGameZip(
     offset += chunk.byteLength
   }
   return keep(buffer)
+}
+
+/** Bundle Valve's game files (`game.zip`), revalidated by ETag. */
+export function downloadGameZip(
+  url: string,
+  onProgress: (progress: DownloadProgress) => void,
+): Promise<Uint8Array> {
+  return downloadCached(url, GAME_CACHE, onProgress)
+}
+
+/** Custom maps archive (`custom.pk3`) — URL mang version nên chỉ tải lại khi đổi. */
+export function downloadCustomMaps(
+  url: string,
+  onProgress: (progress: DownloadProgress) => void,
+): Promise<Uint8Array> {
+  return downloadCached(url, CUSTOM_CACHE, onProgress)
 }
 
 export interface MountResult {

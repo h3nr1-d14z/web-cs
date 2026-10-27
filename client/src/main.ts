@@ -1,6 +1,6 @@
 import { WEBASSETS_URL, currentRoomId } from './config'
 import { blockMicrophone, startEngine, type Session } from './engine'
-import { downloadGameZip, type DownloadProgress } from './assets'
+import { downloadCustomMaps, downloadGameZip, type DownloadProgress } from './assets'
 import {
   applyPrefs,
   BINDS,
@@ -51,6 +51,8 @@ const ui = {
   paneServer: $<HTMLElement>('pane-server'),
   presetList: $<HTMLElement>('preset-list'),
   mapList: $<HTMLElement>('map-list'),
+  mapFilter: $<HTMLInputElement>('map-filter'),
+  chkCheats: $<HTMLInputElement>('chk-cheats'),
   btnRestart: $<HTMLButtonElement>('btn-restart'),
   botsCount: $<HTMLElement>('bots-count'),
   botPlus: $<HTMLButtonElement>('btn-bot-plus'),
@@ -92,6 +94,8 @@ const prefs = loadPrefs()
 const roomId = currentRoomId()
 const ownerToken = localStorage.getItem(`webcs.owner.${roomId}`) ?? ''
 let isRoomOwner = false
+let roomCheats = false
+let roomMaps: string[] = []
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -380,6 +384,17 @@ function renderOwnerControls(): void {
   ui.ownerControls.hidden = !isRoomOwner
   ui.ownerHint.hidden = isRoomOwner
   ui.botsCount.textContent = String(roomBots())
+  ui.chkCheats.checked = roomCheats
+}
+
+async function setCheats(enabled: boolean): Promise<void> {
+  try {
+    const view = await api<Pick<RoomView, 'cheats'>>(`/api/rooms/${roomId}`, { cheats: enabled }, 'PATCH')
+    roomCheats = Boolean(view.cheats)
+  } catch (error) {
+    log.push('server', `đổi cheats lỗi: ${String(error)}`)
+  }
+  renderOwnerControls()
 }
 
 function roomBots(): number {
@@ -422,6 +437,51 @@ async function installMap(): Promise<void> {
   }, 2500)
 }
 
+const MAP_GROUP_ORDER = ['Surf', 'KZ / bhop', 'Map gốc CS', 'Khác'] as const
+const MAP_GROUPS: Array<[(typeof MAP_GROUP_ORDER)[number], RegExp]> = [
+  ['Surf', /^surf_/],
+  ['KZ / bhop', /^(kz|bhop|jump|climb|rush)/],
+  ['Map gốc CS', /^(as_|cs_|csg_|de_|es_|fy_|he_|ka_|sport_|aim_|awp_|dm_|gg_)/],
+]
+
+/** 40+ map thành một bãi nút thì không chọn được: chia nhóm + lọc theo tên. */
+function renderMapList(): void {
+  const filter = ui.mapFilter.value.trim().toLowerCase()
+  const groups = new Map<string, string[]>()
+  for (const map of roomMaps) {
+    if (filter && !map.includes(filter)) continue
+    const group = MAP_GROUPS.find(([, re]) => re.test(map))?.[0] ?? 'Khác'
+    const list = groups.get(group) ?? []
+    list.push(map)
+    groups.set(group, list)
+  }
+
+  ui.mapList.innerHTML = ''
+  for (const group of MAP_GROUP_ORDER) {
+    const list = groups.get(group)
+    if (!list?.length) continue
+    const heading = document.createElement('div')
+    heading.className = 'pane-hint'
+    heading.style.width = '100%'
+    heading.textContent = `${group} · ${list.length}`
+    ui.mapList.append(heading)
+    for (const map of list) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'btn btn--ghost btn--small'
+      button.style.margin = '0 4px 4px 0'
+      button.style.display = 'inline-block'
+      button.style.width = 'auto'
+      button.textContent = map
+      button.addEventListener('click', () => void changeMap(map, button))
+      ui.mapList.append(button)
+    }
+  }
+  if (!ui.mapList.childElementCount) {
+    ui.mapList.innerHTML = '<span class="pane-hint">Không map nào khớp.</span>'
+  }
+}
+
 async function refreshServerPane(): Promise<void> {
   ui.btnRestart.disabled = true
   try {
@@ -432,6 +492,7 @@ async function refreshServerPane(): Promise<void> {
     ])
 
     isRoomOwner = Boolean(roomInfo?.isOwner)
+    roomCheats = Boolean(roomInfo?.cheats)
     renderOwnerControls()
 
     ui.presetList.innerHTML = ''
@@ -448,18 +509,8 @@ async function refreshServerPane(): Promise<void> {
       ui.presetList.innerHTML = '<span class="pane-hint">Không có preset nào.</span>'
     }
 
-    ui.mapList.innerHTML = ''
-    for (const map of maps.maps ?? []) {
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'btn btn--ghost btn--small'
-      button.style.margin = '0 4px 4px 0'
-      button.style.display = 'inline-block'
-      button.style.width = 'auto'
-      button.textContent = map
-      button.addEventListener('click', () => void changeMap(map, button))
-      ui.mapList.append(button)
-    }
+    roomMaps = maps.maps ?? []
+    renderMapList()
   } catch (error) {
     ui.mapList.innerHTML = `<span class="pane-hint">Không nạp được: ${String(error)}</span>`
   } finally {
@@ -469,6 +520,7 @@ async function refreshServerPane(): Promise<void> {
 
 interface RoomView {
   bots: number
+  cheats?: boolean
   isOwner?: boolean
   map?: string
 }
@@ -688,15 +740,16 @@ async function startGame(): Promise<void> {
     log.push('boot', `Đã tải ${fmtMB(zip.byteLength)}, khởi động engine`)
     setProgress(null)
 
-    // Map custom (parkour/kz...) — gói riêng, chỉ tải lại khi có map mới.
+    // Map custom (parkour/kz/surf...) — gói riêng, cache theo version nên chỉ
+    // tải lại khi server cài map mới.
     let customZip: Uint8Array | undefined
     try {
       const { version } = await api<{ version: string }>('/api/custom')
       if (version) {
-        setLoading('Đang tải map custom…', '')
-        const res = await fetch(`/custom.pk3?v=${version}`)
-        if (res.ok) customZip = new Uint8Array(await res.arrayBuffer())
-        log.push('boot', `custom.pk3 v${version}: ${customZip ? fmtMB(customZip.byteLength) : 'không có'}`)
+        setLoading('Đang tải map custom…', '0%')
+        setProgress(0)
+        customZip = await downloadCustomMaps(`/custom.pk3?v=${version}`, onDownloadProgress)
+        log.push('boot', `custom.pk3 v${version}: ${fmtMB(customZip.byteLength)}`)
       }
     } catch (error) {
       log.push('boot', `custom maps bỏ qua: ${String(error)}`)
@@ -867,6 +920,8 @@ function wireUi(): void {
 
   ui.botPlus.addEventListener('click', () => void setBots(roomBots() + 1))
   ui.botMinus.addEventListener('click', () => void setBots(Math.max(0, roomBots() - 1)))
+  ui.chkCheats.addEventListener('change', () => void setCheats(ui.chkCheats.checked))
+  ui.mapFilter.addEventListener('input', renderMapList)
   ui.btnCloseRoom.addEventListener('click', async () => {
     if (!confirm('Đóng phòng này? Mọi người trong phòng sẽ bị ngắt.')) return
     try {

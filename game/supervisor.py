@@ -42,6 +42,8 @@ MAX_BOTS = 8
 # Mỗi phòng = 1 process game server riêng: cap để hàng xóm ngoài Internet không
 # spawn hàng chục server qua POST /rooms (mỗi phòng giữ slot tới EMPTY_TTL).
 MAX_ROOMS = int(os.environ.get("MAX_ROOMS", "8"))
+# Số lần dựng lại một phòng bị crash trong 10 phút trước khi đóng hẳn.
+CRASH_LIMIT = 3
 
 LOCK = threading.Lock()
 ROOMS = {}  # id → dict
@@ -133,6 +135,9 @@ def apply_mode(room):
     for command in (presets.get(name) or {}).get("commands") or []:
         rcon(room["port"], RCON_PASSWORD, command)
     rcon(room["port"], RCON_PASSWORD, f"yb_quota {room['bots']}")
+    # server.cfg (exec lại sau mỗi changelevel) đặt sv_cheats 0, nên phải trả
+    # cheats về đúng trạng thái phòng sau khi map load — phủ luôn boot + respawn.
+    rcon(room["port"], RCON_PASSWORD, "sv_cheats 1" if room.get("cheats") else "sv_cheats 0")
     if name:
         print(f"[supervisor] room {room['id']}: mode {name}", flush=True)
 
@@ -158,7 +163,7 @@ def free_port(rooms):
 def persist():
     os.makedirs(os.path.dirname(ROOMS_FILE), exist_ok=True)
     specs = {
-        rid: {k: r[k] for k in ("name", "map", "maxplayers", "password", "bots", "preset", "port", "owner_token")}
+        rid: {k: r[k] for k in ("name", "map", "maxplayers", "password", "bots", "preset", "cheats", "port", "owner_token")}
         for rid, r in ROOMS.items()
     }
     tmp = ROOMS_FILE + ".tmp"
@@ -180,6 +185,8 @@ def spawn_room(rid, spec):
     ]
     if spec.get("password"):
         args += ["+sv_password", spec["password"]]
+    if spec.get("cheats"):
+        args += ["+sv_cheats", "1"]
     logf = open(os.path.join(GAME_DIR, f"room-{rid}.log"), "ab")
     proc = subprocess.Popen(args, cwd=GAME_DIR, stdout=logf, stderr=logf)
     ROOMS[rid] = {
@@ -190,6 +197,7 @@ def spawn_room(rid, spec):
         "password": spec.get("password", ""),
         "bots": int(spec.get("bots", 0)),
         "preset": spec.get("preset", ""),
+        "cheats": bool(spec.get("cheats")),
         "port": port,
         "owner_token": spec.get("owner_token"),
         "proc": proc,
@@ -233,6 +241,7 @@ def room_view(room, token=None):
         "hasPassword": bool(room["password"]),
         "bots": room["bots"],
         "preset": room.get("preset", ""),
+        "cheats": bool(room.get("cheats")),
         "port": room["port"],
         "players": room["status"]["players"],
         "humans": room["status"]["humans"],
@@ -246,9 +255,46 @@ def is_owner(room, token):
 
 
 # ---------------------------------------------------------------- loops
+def respawn_crashed(room, code):
+    """xash chết (map hỏng, hết RAM, host_error…). Không dựng lại thì phòng
+    vẫn 'online' trong danh sách tới EMPTY_TTL mà không ai vào được."""
+    rid = room["id"]
+    recent = [t for t in room.get("crashes", []) if time.time() - t < 600]
+    recent.append(time.time())
+    room["crashes"] = recent
+    if len(recent) > CRASH_LIMIT:
+        print(
+            f"[supervisor] room {rid}: xash chết {len(recent)} lần/10 phút (mã {code}) — đóng phòng",
+            flush=True,
+        )
+        kill_room(rid)
+        return
+    print(
+        f"[supervisor] room {rid}: xash chết (mã {code}) — dựng lại ({len(recent)}/{CRASH_LIMIT})",
+        flush=True,
+    )
+    spec = {k: room[k] for k in ("name", "map", "maxplayers", "password", "bots", "preset", "port", "owner_token", "cheats")}
+    try:
+        room["logf"].close()
+    except (OSError, ValueError):
+        pass
+    spawn_room(rid, spec)
+    ROOMS[rid]["crashes"] = recent
+    persist()
+
+
 def status_loop():
     while True:
         for room in list(ROOMS.values()):
+            code = room["proc"].poll()
+            if code is not None:
+                # Vòng lặp này phải sống sót: chết ở đây là mất luôn status của
+                # mọi phòng, và lỗi dựng lại lặp vô hạn nếu không đếm.
+                try:
+                    respawn_crashed(room, code)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[supervisor] room {room.get('id')}: dựng lại lỗi: {exc}", flush=True)
+                continue
             info = a2s_info("127.0.0.1", room["port"])
             if not info:
                 continue
@@ -348,6 +394,7 @@ class Handler(BaseHTTPRequestHandler):
                 "password": str(body.get("password") or "")[:24],
                 "bots": max(0, min(int(body.get("bots") or 0), MAX_BOTS)),
                 "preset": preset if preset in load_presets() else "",
+                "cheats": bool(body.get("cheats")),
                 "owner_token": secrets.token_hex(16),
             }
             spawn_room(rid, spec)
@@ -404,6 +451,11 @@ class Handler(BaseHTTPRequestHandler):
             if "bots" in body:
                 room["bots"] = max(0, min(int(body["bots"]), MAX_BOTS))
                 rcon(room["port"], RCON_PASSWORD, f"yb_quota {room['bots']}")
+            # sv_cheats là cvar toàn server: bật = cả phòng dùng được
+            # noclip/god/impulse 101, không có kiểu "chỉ chủ phòng".
+            if "cheats" in body:
+                room["cheats"] = bool(body["cheats"])
+                rcon(room["port"], RCON_PASSWORD, "sv_cheats 1" if room["cheats"] else "sv_cheats 0")
             if "name" in body:
                 room["name"] = str(body["name"])[:32]
                 rcon(room["port"], RCON_PASSWORD, f"hostname {room['name']} · web-cs")

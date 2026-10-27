@@ -76,6 +76,10 @@
               <span class="value-chip" id="bots-count">0</span>
               <button class="btn btn--small" id="btn-bot-plus" type="button">+</button>
             </div>
+            <div class="setting-row">
+              <label for="chk-cheats">Cheats cả phòng (<code>sv_cheats 1</code> — noclip/god/impulse)</label>
+              <input type="checkbox" id="chk-cheats" />
+            </div>
             <div class="setting-row setting-row--col">
               <span>Cài map từ URL (.zip / .rar / .bsp — GameBanana: dán link trang mod)</span>
               <input id="map-url" placeholder="https://gamebanana.com/mods/96966 hoặc link trực tiếp" />
@@ -91,6 +95,7 @@
           </div>
           <div id="preset-list" class="preset-list"></div>
           <div class="divider"></div>
+          <input id="map-filter" placeholder="Lọc map (vd surf, kz, de_dust)…" />
           <div id="map-list" class="map-list"><span class="pane-hint">đang nạp map…</span></div>
           <button id="btn-restart" class="btn btn--small" type="button">Restart ván hiện tại</button>
           <p class="hint" id="owner-hint" hidden>Chỉ chủ phòng mới sửa được phòng này.</p>
