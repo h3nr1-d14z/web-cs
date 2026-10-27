@@ -220,6 +220,15 @@ async function handleApi(request, response, url) {
   const roomMatch = url.pathname.match(/^\/api\/rooms\/([\w-]+)$/)
   const presetMatch = url.pathname.match(/^\/api\/rooms\/([\w-]+)\/preset$/)
 
+  // Play page hỏi trước khi tải engine: mã sai vốn chỉ hiện ra dưới dạng
+  // WebSocket chết lặng, và engine vẫn boot thành game cục bộ.
+  if (url.pathname === '/api/entry') {
+    if (ACCESS_CODE && request.headers['x-access-code'] !== ACCESS_CODE) {
+      return sendJson(response, 401, { error: 'mã truy cập sai hoặc thiếu' })
+    }
+    return sendJson(response, 200, { ok: true })
+  }
+
   // HUD trong game (?room=<id>): legacy shape cho client cũ/mới đều hiểu.
   if (url.pathname === '/api/status') {
     const requested = url.searchParams.get('room')

@@ -649,6 +649,17 @@ async function startGame(): Promise<void> {
 
   const unsubscribe = log.subscribe(appendLoadingLog)
   try {
+    // Kiểm mã trước khi tải 30MB engine: sai mã thì báo ngay, đừng để WS chết
+    // lặng rồi engine boot thành game cục bộ.
+    try {
+      await api('/api/entry')
+    } catch (error) {
+      throw new Error(
+        `Không vào được server: ${error instanceof Error ? error.message : String(error)}. ` +
+          'Quay lại dashboard, nhập mã truy cập rồi bấm Vào game.',
+      )
+    }
+
     setLoading('Đang tải file game…', '0%')
     log.push('boot', `Tải ${WEBASSETS_URL}`)
     const zip = await downloadGameZip(WEBASSETS_URL, onDownloadProgress)
