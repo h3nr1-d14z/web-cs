@@ -50,13 +50,16 @@ export async function downloadCached(
   const keep = async (buffer: Uint8Array<ArrayBuffer>): Promise<Uint8Array> => {
     if (cache) {
       const tag = etag || response.headers.get('etag') || ''
-      // Ghi cache hỏng = lần sau tải lại hàng trăm MB, nên đừng nuốt lỗi im lặng.
-      await cache
-        .put(abs, new Response(buffer, { headers: { 'x-etag': tag } }))
-        .catch((error) => log.push('assets', `không lưu được cache: ${error}`))
-      // Bản của version trước chiếm chỗ vô ích (mỗi bản pk3 vài chục MB).
-      for (const request of await cache.keys().catch(() => [])) {
-        if (request.url !== abs) await cache.delete(request).catch(() => {})
+      try {
+        // Ghi cache hỏng = lần sau tải lại hàng trăm MB, nên đừng nuốt lỗi im lặng.
+        await cache.put(abs, new Response(buffer, { headers: { 'x-etag': tag } }))
+        // Bản của version trước chiếm chỗ vô ích (mỗi bản pk3 vài chục MB) —
+        // chỉ dọn sau khi bản mới đã vào cache, kẻo hết quota lại mất cả hai.
+        for (const request of await cache.keys().catch(() => [])) {
+          if (request.url !== abs) await cache.delete(request).catch(() => {})
+        }
+      } catch (error) {
+        log.push('assets', `không lưu được cache: ${error}`)
       }
     }
     return buffer
