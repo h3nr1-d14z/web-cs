@@ -114,6 +114,10 @@ Mở `http://<ip>:27016` là **dashboard**:
   (`maps: ["kz_", "surf_", …]` cho parkour) nên chọn Parkour là ô map chỉ còn map phù hợp;
   pool rỗng thì hiện mọi map kèm gợi ý cài map. Cvar của chế độ áp ngay sau khi server boot-
   xong, và áp lại sau mỗi lần `changelevel`. Ô **Bot** luôn thắng `yb_quota` của preset.
+- **Hai cây game**: phòng parkour chạy một basedir riêng có metamod + AMXX
+  (ProKreedz: checkpoint/timer, cvar `kz_*`); phòng còn lại chạy cây YaPB. `ls /xashkz`
+  trong container game thấy cây parkour (symlink về `/xashds`, không nhân bản asset).
+  Nên **bot chỉ có ở phòng không-parkour** — nút ± Bot ở phòng parkour không có tác dụng.
 - Người tạo phòng là **chủ phòng** (token lưu trên máy đó): chỉ chủ phòng đổi map/preset/
   bots/đóng phòng. Người khác chỉ xem và bấm **Vào**.
 - **Vòng đời**: phòng trống người thật quá 30 phút tự đóng; chủ phòng cũng đóng được bất cứ

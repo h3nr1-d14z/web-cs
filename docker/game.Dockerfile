@@ -39,10 +39,11 @@ RUN mkdir -p /opt/yapb \
  && rm /tmp/yapb.tar.xz \
  && test -f /opt/yapb/addons/yapb/bin/yapb.so
 
-# KZ mode (KZ_MODE=1): metamod-p + AMX Mod X (base + cstrike) cho plugin
-# ProKreedz — checkpoints/timer/teleport cho map parkour. Bots TẮT trong mode này.
+# Parkour: metamod-p + AMX Mod X (base + cstrike) cho ProKreedz (checkpoint/
+# timer). Bản ubuntu2404 cần glibc 2.38, image bookworm chỉ có 2.36 → dlopen
+# chết với "GLIBC_2.38 not found"; bản ubuntu1804 (glibc 2.27) nạp được.
 RUN curl -fsSL -o /tmp/metamod.tar.xz \
-      "https://github.com/Bots-United/metamod-p/releases/download/v1.21p109/metamod-p-v1.21p109-linux_ubuntu2404.tar.xz" \
+      "https://github.com/Bots-United/metamod-p/releases/download/v1.21p109/metamod-p-v1.21p109-linux_ubuntu1804.tar.xz" \
  && mkdir -p /opt/metamod \
  && tar -xJf /tmp/metamod.tar.xz -C /opt/metamod \
  && rm /tmp/metamod.tar.xz \

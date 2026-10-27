@@ -32,6 +32,10 @@ from urllib.parse import urlparse
 
 XASH = os.environ.get("XASH", "/xashds/xash")
 GAME_DIR = os.environ.get("GAME_DIR", "/xashds")
+# Cây game cho phòng parkour (metamod + AMXX + ProKreedz). Entrypoint dựng nó
+# bằng symlink về GAME_DIR; xash lấy basedir = CWD nên chỉ cần đổi CWD.
+KZ_ROOT = os.environ.get("XASH_KZ_ROOT", "/xashkz")
+KZ_PRESET = "parkour"
 ROOMS_FILE = os.environ.get("ROOMS_FILE", "/data/rooms.json")
 RCON_PASSWORD = os.environ.get("RCON_PASSWORD", "doi-mat-khau-nay")
 PRESETS_FILE = os.environ.get("PRESETS_FILE", "/opt/config/presets.json")
@@ -121,6 +125,17 @@ def preset_for_map(map_name):
     return ""
 
 
+def mode_name(spec):
+    """Preset của phòng: chủ phòng chọn lúc tạo, hoặc suy ra từ tên map."""
+    return spec.get("preset") or preset_for_map(spec.get("map", ""))
+
+
+def base_dir_for(spec):
+    """CWD (và do đó là basedir) của tiến trình xash: phòng parkour cần cây có
+    metamod/AMXX (checkpoint ProKreedz), phòng còn lại cây YaPB."""
+    return KZ_ROOT if mode_name(spec) == KZ_PRESET else GAME_DIR
+
+
 def apply_mode(room):
     """Áp cvar của mode chọn lúc tạo phòng, hoặc suy ra từ tên map.
     `yb_quota` gửi sau cùng để ô "Bot" ở dashboard luôn thắng preset."""
@@ -188,9 +203,10 @@ def spawn_room(rid, spec):
     if spec.get("cheats"):
         args += ["+sv_cheats", "1"]
     logf = open(os.path.join(GAME_DIR, f"room-{rid}.log"), "ab")
-    proc = subprocess.Popen(args, cwd=GAME_DIR, stdout=logf, stderr=logf)
+    proc = subprocess.Popen(args, cwd=base_dir_for(spec), stdout=logf, stderr=logf)
     ROOMS[rid] = {
         "id": rid,
+        "base_dir": base_dir_for(spec),
         "name": spec.get("name") or f"Phòng {rid}",
         "map": spec.get("map", "de_dust2"),
         "maxplayers": int(spec.get("maxplayers", 16)),
@@ -319,17 +335,45 @@ def autoclose_loop():
         time.sleep(60)
 
 
-def kill_room(rid):
-    room = ROOMS.pop(rid, None)
-    if not room:
-        return False
-    room["proc"].terminate()
+def stop_proc(room):
+    """Dừng tiến trình xash và đợi nó thoát thật: dựng lại ngay sau đó sẽ tranh
+    cùng UDP port nếu process cũ còn giữ socket."""
+    proc = room.get("proc")
+    if proc and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
     try:
         room["logf"].close()
     except (OSError, ValueError):
         pass
+
+
+def kill_room(rid):
+    room = ROOMS.pop(rid, None)
+    if not room:
+        return False
+    stop_proc(room)
     persist()
     return True
+
+
+def restart_room(room):
+    """Đổi cây game (bots ↔ parkour) cần tiến trình mới: liblist.gam và addons/
+    chỉ được đọc lúc boot nên changelevel không đổi được."""
+    rid = room["id"]
+    spec = {k: room[k] for k in (
+        "name", "map", "maxplayers", "password", "bots", "preset", "cheats", "port", "owner_token",
+    )}
+    stop_proc(room)
+    ROOMS.pop(rid, None)
+    spawn_room(rid, spec)
 
 
 def restore():
@@ -441,10 +485,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if body.get("restart"):
                 rcon(room["port"], RCON_PASSWORD, "sv_restart 1")
+            new_map = None
             if "map" in body and re.match(r"^[\w.-]+$", str(body["map"])):
-                rcon(room["port"], RCON_PASSWORD, f"changelevel {body['map']}")
-                room["map"] = body["map"]
-                threading.Thread(target=reapply_mode, args=(room,), daemon=True).start()
+                new_map = str(body["map"])
+                room["map"] = new_map
             if "password" in body:
                 room["password"] = str(body["password"])[:24]
                 rcon(room["port"], RCON_PASSWORD, f"sv_password {room['password']}")
@@ -459,6 +503,14 @@ class Handler(BaseHTTPRequestHandler):
             if "name" in body:
                 room["name"] = str(body["name"])[:32]
                 rcon(room["port"], RCON_PASSWORD, f"hostname {room['name']} · web-cs")
+            # Đổi map vắt qua ranh giới bots ↔ parkour phải dựng lại tiến trình;
+            # cùng cây thì changelevel là đủ (giữ nguyên ván/kết nối).
+            if new_map and base_dir_for(room) != room.get("base_dir"):
+                restart_room(room)
+                room = ROOMS.get(rid) or room
+            elif new_map:
+                rcon(room["port"], RCON_PASSWORD, f"changelevel {new_map}")
+                threading.Thread(target=reapply_mode, args=(room,), daemon=True).start()
         except RuntimeError as exc:
             return self._json(502, {"error": str(exc)})
         persist()

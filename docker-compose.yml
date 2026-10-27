@@ -55,7 +55,6 @@ services:
       EMPTY_TTL: ${EMPTY_TTL:-1800}
       MAX_ROOMS: ${MAX_ROOMS:-8}
       RCON_PASSWORD: ${RCON_PASSWORD:-doi-mat-khau-nay}
-      KZ_MODE: ${KZ_MODE:-0}
     volumes:
       - assets:/xashds
       # Preset/cvar đọc từ repo chứ không nung vào image: chỉnh "mượt" xong là

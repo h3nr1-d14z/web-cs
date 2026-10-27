@@ -23,44 +23,50 @@ cp -f /opt/regamedll/bin/linux32/cstrike/dlls/cs.so "$ROOT/cstrike/dlls/cs.so"
 # a given HLDS build shipped.
 cp -f /opt/config/liblist.gam "$ROOT/cstrike/liblist.gam"
 
-# YaPB bot (standalone): engine nạp yapb.so qua liblist, yapb tự chain tới
-# ReGameDLL (dlls/cs.so). conf/data chỉ copy lần đầu để giữ chỉnh sửa của user.
-if [ -d /opt/yapb/addons/yapb ] && [ ! -f "$ROOT/cstrike/addons/yapb/bin/yapb.so" ]; then
+# Hai cây game dùng chung một bộ asset:
+#   $ROOT     → bots: engine nạp thẳng yapb.so qua liblist (không metamod).
+#   $KZ_ROOT  → parkour: metamod → AMXX (ProKreedz: checkpoint/timer/zones).
+# xash lấy basedir = thư mục làm việc và đọc cstrike/liblist.gam từ đó, nên chỉ
+# cần cho phòng parkour chạy với CWD khác. Tên gamedir vẫn là "cstrike" (client
+# wasm cố định mod dir đó). Cây KZ là symlink farm trỏ về $ROOT/cstrike nên
+# map/model/sound/custom.pk3 dùng chung, không nhân bản hàng trăm MB asset.
+if [ -d /opt/yapb/addons/yapb ]; then
   mkdir -p "$ROOT/cstrike/addons/yapb"
   cp -a /opt/yapb/addons/yapb/bin "$ROOT/cstrike/addons/yapb/"
   cp -a /opt/yapb/addons/yapb/conf "$ROOT/cstrike/addons/yapb/"
   cp -a /opt/yapb/addons/yapb/data "$ROOT/cstrike/addons/yapb/"
 fi
+sed -i 's#^gamedll_linux .*#gamedll_linux "addons/yapb/bin/yapb.so"#' "$ROOT/cstrike/liblist.gam"
 
-# KZ mode: metamod + AMXX + ProKreedz (không bots). Mặc định: YaPB bots.
-if [ "${KZ_MODE:-0}" = "1" ]; then
-  mkdir -p "$ROOT/cstrike/addons/amxmodx"
-  cp -a /opt/amxx/addons/amxmodx/configs "$ROOT/cstrike/addons/amxmodx/"
-  cp -a /opt/amxx/addons/amxmodx/data "$ROOT/cstrike/addons/amxmodx/"
-  cp -a /opt/amxx/addons/amxmodx/dlls "$ROOT/cstrike/addons/amxmodx/"
-  cp -a /opt/amxx/addons/amxmodx/modules "$ROOT/cstrike/addons/amxmodx/"
-  mkdir -p "$ROOT/cstrike/addons/amxmodx/plugins"
-  cp -f /opt/config/amxx-plugins/*.amxx "$ROOT/cstrike/addons/amxmodx/plugins/"
-  # AMXX chỉ nạp plugin được liệt kê ở đây — copy file .amxx vào plugins/ là chưa đủ.
-  for plugin in /opt/config/amxx-plugins/*.amxx; do
-    printf '%s\n' "$(basename "$plugin")"
-  done > "$ROOT/cstrike/addons/amxmodx/configs/plugins.ini"
-  mkdir -p "$ROOT/cstrike/addons/metamod/dlls"
-  cp -f /opt/metamod/addons/metamod/dlls/metamod.so "$ROOT/cstrike/addons/metamod/dlls/metamod_i386.so"
-  printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$ROOT/cstrike/addons/metamod/plugins.ini"
-  printf '[config]\ngamedll_linux dlls/cs.so\n' > "$ROOT/cstrike/addons/metamod/config.ini"
-  sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod_i386.so"#' "$ROOT/cstrike/liblist.gam"
-  echo "→ KZ mode: metamod + AMXX + ProKreedz (không bots)"
-else
-  # Bots mode: engine nạp yapb.so qua liblist, yapb tự chain tới ReGameDLL.
-  if [ -d /opt/yapb/addons/yapb ]; then
-    mkdir -p "$ROOT/cstrike/addons/yapb"
-    cp -a /opt/yapb/addons/yapb/bin "$ROOT/cstrike/addons/yapb/"
-    cp -a /opt/yapb/addons/yapb/conf "$ROOT/cstrike/addons/yapb/"
-    cp -a /opt/yapb/addons/yapb/data "$ROOT/cstrike/addons/yapb/"
-  fi
-  sed -i 's#^gamedll_linux .*#gamedll_linux "addons/yapb/bin/yapb.so"#' "$ROOT/cstrike/liblist.gam"
-fi
+KZ_ROOT=${XASH_KZ_ROOT:-/xashkz}
+rm -rf "$KZ_ROOT"
+mkdir -p "$KZ_ROOT/cstrike/addons/amxmodx/plugins" "$KZ_ROOT/cstrike/addons/metamod/dlls"
+ln -sf "$ROOT/xash" "$KZ_ROOT/xash"
+ln -sf "$ROOT/filesystem_stdio.so" "$KZ_ROOT/filesystem_stdio.so"
+ln -sf "$ROOT/valve" "$KZ_ROOT/valve"
+for entry in "$ROOT"/cstrike/*; do
+  base=$(basename "$entry")
+  case "$base" in liblist.gam|addons) continue ;; esac
+  ln -sf "$entry" "$KZ_ROOT/cstrike/$base"
+done
+# custom.pk3 do web ghi sau khi boot (rename nguyên tử): symlink theo tên nên
+# phải tạo vô điều kiện, kể cả lúc file chưa tồn tại.
+ln -sf "$ROOT/cstrike/custom.pk3" "$KZ_ROOT/cstrike/custom.pk3"
+cp -f "$ROOT/cstrike/liblist.gam" "$KZ_ROOT/cstrike/liblist.gam"
+sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod.so"#' "$KZ_ROOT/cstrike/liblist.gam"
+cp -a /opt/amxx/addons/amxmodx/configs /opt/amxx/addons/amxmodx/data \
+     /opt/amxx/addons/amxmodx/dlls /opt/amxx/addons/amxmodx/modules "$KZ_ROOT/cstrike/addons/amxmodx/"
+cp -f /opt/config/amxx-plugins/*.amxx "$KZ_ROOT/cstrike/addons/amxmodx/plugins/"
+# AMXX chỉ nạp plugin được liệt kê ở đây — copy file .amxx vào plugins/ là chưa đủ.
+for plugin in /opt/config/amxx-plugins/*.amxx; do
+  basename "$plugin"
+done > "$KZ_ROOT/cstrike/addons/amxmodx/configs/plugins.ini"
+cp -f /opt/metamod/addons/metamod/dlls/metamod.so "$KZ_ROOT/cstrike/addons/metamod/dlls/metamod.so"
+printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$KZ_ROOT/cstrike/addons/metamod/plugins.ini"
+printf '[config]\ngamedll_linux dlls/cs.so\n' > "$KZ_ROOT/cstrike/addons/metamod/config.ini"
+# ProKreedz lưu kỷ lục qua SQLite; module có sẵn nhưng mặc định bị comment.
+printf 'sqlite\n' >> "$KZ_ROOT/cstrike/addons/amxmodx/configs/modules.ini"
+echo "→ bots: $ROOT (YaPB) · parkour: $KZ_ROOT (metamod + AMXX + ProKreedz)"
 
 # delta.lst is the network delta table; the engine aborts without it and some
 # HLDS builds ship it only in the newer game files.
