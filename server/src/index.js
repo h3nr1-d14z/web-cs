@@ -213,6 +213,8 @@ async function remoteRooms() {
 async function handleApi(request, response, url) {
   // Docker: phòng do supervisor quản.
   if (remoteMode && ROOMS_PATH_RE.test(url.pathname)) {
+    // Tạo phòng = spawn thêm một game server: phải có mã vào, đừng để hở.
+    if (request.method === 'POST' && url.pathname === '/api/rooms' && !requireCode(request, response)) return
     return proxyRooms(request, response, url)
   }
 
@@ -241,6 +243,7 @@ async function handleApi(request, response, url) {
   }
 
   if (url.pathname === '/api/rooms' && method === 'POST') {
+    if (!requireCode(request, response)) return
     const body = await readBody(request)
     const created = await createRoom({
       name: body.name,
@@ -418,6 +421,13 @@ async function handleApi(request, response, url) {
 function isGlobalAdmin(request) {
   if (!ACCESS_CODE) return true
   return request.headers['x-access-code'] === ACCESS_CODE
+}
+
+/** Tạo phòng spawn thêm một game server: cần mã vào khi server đặt mã. */
+function requireCode(request, response) {
+  if (isGlobalAdmin(request)) return true
+  sendJson(response, 401, { error: 'cần mã vào — nhập ở ô Mã vào trên dashboard' })
+  return false
 }
 
 async function serveCustomPk3(request, response) {
