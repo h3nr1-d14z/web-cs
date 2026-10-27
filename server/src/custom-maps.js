@@ -68,10 +68,13 @@ export async function extractArchive(buffer) {
       process.env.RAR_TOOL,
       '7z',
       '7zz',
-      'unrar',
       'bsdtar',
-      'C:\\Program Files\\7-Zip\\7z.exe',
-      'C:\\Program Files (x86)\\7-Zip\\7z.exe',
+      'unrar',
+      // Đường dẫn Windows chỉ thử khi thật sự chạy Windows: ENOENT của chúng
+      // sẽ che mất lỗi thật của 7z/bsdtar khi chạy trên Linux.
+      ...(process.platform === 'win32'
+        ? ['C:\\Program Files\\7-Zip\\7z.exe', 'C:\\Program Files (x86)\\7-Zip\\7z.exe']
+        : []),
     ].filter(Boolean)
 
     const tmpDir = path.join(os.tmpdir(), `webcs-extract-${Date.now()}`)
@@ -79,7 +82,7 @@ export async function extractArchive(buffer) {
     const archivePath = tmpDir + '.rar'
     await writeFile(archivePath, buffer)
 
-    let lastError = 'không tìm thấy 7z/unrar trên máy'
+    const errors = []
     for (const tool of tools) {
       try {
         const args = tool.endsWith('unrar')
@@ -96,13 +99,13 @@ export async function extractArchive(buffer) {
         await rm(tmpDir, { recursive: true, force: true })
         return picked
       } catch (error) {
-        lastError = error.message
+        errors.push(error.message)
       }
     }
     await rm(tmpDir, { recursive: true, force: true })
     throw new Error(
-      `File là .rar — cần 7-Zip, UnRAR hoặc bsdtar để giải nén (lỗi cuối: ${lastError}). ` +
-        'Cài 7-Zip rồi đặt RAR_TOOL=đường_dẫn_7z nếu cần.',
+      `File là .rar nhưng không tool nào giải nén được (${errors.join(' | ') || 'không có tool'}). ` +
+        'Cài 7-Zip hoặc bsdtar, hoặc đặt RAR_TOOL=đường_dẫn nếu cần.',
     )
   }
 
