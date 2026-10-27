@@ -81,6 +81,11 @@ export async function extractArchive(buffer) {
     await mkdir(tmpDir, { recursive: true })
     const archivePath = tmpDir + '.rar'
     await writeFile(archivePath, buffer)
+    // Xoá cả thư mục giải nén LẪN bản copy .rar — chỉ rm(tmpDir) sẽ để lại archive.
+    const cleanup = async () => {
+      await rm(tmpDir, { recursive: true, force: true })
+      await rm(archivePath, { force: true })
+    }
 
     const errors = []
     for (const tool of tools) {
@@ -96,13 +101,13 @@ export async function extractArchive(buffer) {
           const rel = path.relative(tmpDir, full).split(path.sep).join('/')
           picked[rel] = await readFile(full)
         }
-        await rm(tmpDir, { recursive: true, force: true })
+        await cleanup()
         return picked
       } catch (error) {
         errors.push(error.message)
       }
     }
-    await rm(tmpDir, { recursive: true, force: true })
+    await cleanup()
     throw new Error(
       `File là .rar nhưng không tool nào giải nén được (${errors.join(' | ') || 'không có tool'}). ` +
         'Cài 7-Zip hoặc bsdtar, hoặc đặt RAR_TOOL=đường_dẫn nếu cần.',
