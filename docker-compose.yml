@@ -58,6 +58,9 @@ services:
       KZ_MODE: ${KZ_MODE:-0}
     volumes:
       - assets:/xashds
+      # Preset/cvar đọc từ repo chứ không nung vào image: chỉnh "mượt" xong là
+      # áp ngay cho phòng tạo sau, khỏi build lại image 3 phút.
+      - ./config:/opt/config:ro
       # Danh sách phòng sống qua recreate container (trước đây /data nằm trong
       # writable layer nên mất sạch mỗi lần compose tạo lại container game).
       - rooms:/data
@@ -92,6 +95,7 @@ services:
       MAX_CONNECTIONS: "64"
     volumes:
       - assets:/data
+      - ./config:/app/config:ro
     ports:
       # Host port is the only thing coworkers need: http://<host-ip>:27016
       - "${WEB_PORT:-27016}:8080"
