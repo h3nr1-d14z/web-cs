@@ -210,6 +210,26 @@ function syncPointerState(): void {
   ui.pause.hidden = !session || locked
 }
 
+/**
+ * Giữ phím nóng trình duyệt trong game: trong CS, Ctrl là ngồi nên Ctrl+W
+ * (ngồi + tiến) rất dễ bấm, và hộp thoại "rời trang" của trình duyệt là modal —
+ * nó treo JS của engine cho tới khi bấm. Chrome chỉ cho phép lock khi đang
+ * fullscreen; không hỗ trợ thì bỏ qua (beforeunload vẫn là lưới an toàn).
+ */
+async function lockKeyboard(): Promise<void> {
+  const keyboard = (navigator as Navigator & { keyboard?: { lock?: () => Promise<void> } }).keyboard
+  try {
+    await keyboard?.lock?.()
+    log.push('ui', 'đã khoá phím trình duyệt (Ctrl+W ở lại trong game)')
+  } catch {
+    /* chưa fullscreen / trình duyệt không hỗ trợ */
+  }
+}
+
+function unlockKeyboard(): void {
+  ;(navigator as Navigator & { keyboard?: { unlock?: () => void } }).keyboard?.unlock?.()
+}
+
 async function toggleFullscreen(): Promise<void> {
   try {
     if (document.fullscreenElement) {
@@ -711,6 +731,7 @@ async function startGame(): Promise<void> {
       syncPointerState()
       if (localStorage.getItem(STORE_FULLSCREEN) === '1') void toggleFullscreen()
       requestLock()
+      if (document.fullscreenElement) void lockKeyboard()
       const first = localStorage.getItem(STORE_ONBOARDED) !== '1'
       localStorage.setItem(STORE_ONBOARDED, '1')
       showTab(first ? 'guide' : 'settings')
@@ -801,6 +822,7 @@ function retryLoop(): void {
 }
 
 function leaveGame(): void {
+  unlockKeyboard()
   session?.transport.close()
   session?.xash.quit()
   session = null
@@ -858,6 +880,15 @@ function wireUi(): void {
 
   document.addEventListener('fullscreenchange', () => {
     window.dispatchEvent(new Event('resize'))
+    if (document.fullscreenElement) void lockKeyboard()
+    else unlockKeyboard()
+  })
+  // Mất WebGL context (GPU reset, chuyển tab lâu) = đứng hình vĩnh viễn; ghi
+  // lại để lần sau biết đúng nguyên nhân thay vì đoán.
+  ui.canvas.addEventListener('webglcontextlost', () => {
+    log.push('gl', 'WebGL context lost — game sẽ đứng hình, tải lại trang')
+    ui.hudNet.textContent = 'mất WebGL — F5'
+    ui.hudNet.className = 'hud-chip hud-chip--bad'
   })
   document.addEventListener('pointerlockchange', syncPointerState)
   window.addEventListener('keydown', onCaptureKeydown, true)

@@ -134,7 +134,7 @@ trong pool của dashboard lẫn tab Server.
 | `MAP` | `de_dust2` | Map đầu tiên (phải có trong `cstrike/maps`) |
 | `MAXPLAYERS` | `16` | Số slot |
 | `WEB_PORT` | `27016` | Cổng trên host |
-| `ACCESS_CODE` | rỗng | Nếu đặt: phải nhập mã ở ô **Mã vào** mới vào được game (link play `?code=...` tự mang mã). Tạo phòng và xem danh sách thì không cần mã |
+| `ACCESS_CODE` | rỗng | Nếu đặt: phải nhập mã ở ô **Mã vào** mới vào được game (link play `?code=...` tự mang mã). Tạo phòng và xem danh sách thì không cần mã. Mặc định rỗng = vào thẳng; khi đó nút **Cài map từ URL** trên dashboard bị chặn (endpoint để server tự tải URL — SSRF), muốn dùng thì đặt mã tạm hoặc thả file `.bsp` vào `cstrike/maps` |
 
 Luật chơi: `config/server.cfg` (giá trị CS 1.6 gốc: `mp_startmoney 800`, `mp_roundtime 3`,
 `mp_freezetime 3`…). Sửa xong `docker compose restart game`.
