@@ -13,12 +13,21 @@
  *   node scripts/smoke-test.mjs
  */
 import { spawn } from 'node:child_process'
+import { rmSync } from 'node:fs'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import dgram from 'node:dgram'
 import { once } from 'node:events'
+import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 const PORT = Number(process.env.SMOKE_PORT ?? 18080)
 const UDP_PORT = Number(process.env.SMOKE_UDP_PORT ?? 37015)
+
+// Room creation validates the map against the assets dir; CI has no assets
+// volume, so give it one with a single fake map.
+const assetsDir = await mkdtemp(path.join(process.env.TMPDIR ?? '/tmp', 'webcs-smoke-'))
+await mkdir(path.join(assetsDir, 'cstrike', 'maps'), { recursive: true })
+await writeFile(path.join(assetsDir, 'cstrike', 'maps', 'de_dust2.bsp'), '')
 
 const echo = dgram.createSocket('udp4')
 echo.on('message', (message, remote) => echo.send(message, remote.port, remote.address))
@@ -33,6 +42,7 @@ const server = spawn(process.execPath, ['server/src/index.js'], {
     GAME_PORT: String(UDP_PORT),
     PUBLIC_DIR: process.env.SMOKE_PUBLIC_DIR ?? 'client/dist',
     GAME_ZIP: process.env.SMOKE_GAME_ZIP ?? '.cache/does-not-exist.zip',
+    ASSETS_DIR: assetsDir,
     LOG_LEVEL: process.env.LOG_LEVEL ?? 'warn',
   },
   stdio: 'inherit',
@@ -41,6 +51,7 @@ const server = spawn(process.execPath, ['server/src/index.js'], {
 let failed = false
 const cleanup = () => {
   server.kill()
+  rmSync(assetsDir, { recursive: true, force: true })
   try {
     echo.close()
   } catch {
