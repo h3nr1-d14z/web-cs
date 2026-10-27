@@ -6,25 +6,58 @@ export interface DownloadProgress {
   total: number
 }
 
+const GAME_CACHE = 'webcs-game-v1'
+
 /**
  * Fetch the game bundle. The server serves it with an ETag, so a repeat visit
  * revalidates cheaply instead of moving 200 MB again.
+ *
+ * The HTTP cache alone is not enough: browsers refuse to store a single
+ * response much larger than ~40 MB, so a 260 MB zip always misses and gets
+ * re-downloaded. Cache Storage has no such cap — keep the bytes there and
+ * compare the ETag with a cheap HEAD.
  */
 export async function downloadGameZip(
   url: string,
   onProgress: (progress: DownloadProgress) => void,
 ): Promise<Uint8Array> {
+  const cache = typeof caches === 'undefined' ? null : await caches.open(GAME_CACHE)
+  const stored = (await cache?.match(url)) ?? null
+  let etag = ''
+  let reachable = false
+  try {
+    const head = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+    reachable = head.ok
+    etag = head.headers.get('etag') ?? ''
+  } catch {
+    /* offline: dùng bản đã lưu */
+  }
+  if (stored && ((etag && stored.headers.get('x-etag') === etag) || !reachable)) {
+    const bytes = new Uint8Array(await stored.arrayBuffer())
+    onProgress({ received: bytes.byteLength, total: bytes.byteLength })
+    return bytes
+  }
+
   const response = await fetch(url, { cache: 'no-cache' })
   if (!response.ok) {
     throw new Error(`Không tải được ${url} (HTTP ${response.status})`)
   }
 
   const total = Number(response.headers.get('content-length') ?? 0)
+  const keep = async (buffer: Uint8Array<ArrayBuffer>): Promise<Uint8Array> => {
+    if (cache) {
+      const tag = etag || response.headers.get('etag') || ''
+      await cache
+        .put(url, new Response(new Blob([buffer]), { headers: { 'x-etag': tag } }))
+        .catch(() => {})
+    }
+    return buffer
+  }
 
   if (!response.body) {
     const buffer = new Uint8Array(await response.arrayBuffer())
     onProgress({ received: buffer.byteLength, total: buffer.byteLength })
-    return buffer
+    return keep(buffer)
   }
 
   const reader = response.body.getReader()
@@ -45,7 +78,7 @@ export async function downloadGameZip(
     buffer.set(chunk, offset)
     offset += chunk.byteLength
   }
-  return buffer
+  return keep(buffer)
 }
 
 export interface MountResult {

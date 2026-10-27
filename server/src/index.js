@@ -247,6 +247,7 @@ async function handleApi(request, response, url) {
       maxplayers: body.maxplayers,
       password: body.password,
       bots: body.bots ?? 0,
+      preset: body.preset,
       proc: body.proc,
       port: body.port,
     })
@@ -302,7 +303,13 @@ async function handleApi(request, response, url) {
 
   if (url.pathname === '/api/presets') {
     const presets = await loadPresets()
-    return sendJson(response, 200, Object.fromEntries(Object.entries(presets).map(([id, p]) => [id, p.label])))
+    return sendJson(
+      response,
+      200,
+      Object.fromEntries(
+        Object.entries(presets).map(([id, p]) => [id, { label: p.label, maps: p.maps ?? [] }]),
+      ),
+    )
   }
 
   if (url.pathname === '/api/custom') {

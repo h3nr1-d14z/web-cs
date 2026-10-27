@@ -27,7 +27,8 @@
     ]
   },
   "parkour": {
-    "label": "Parkour (kz/surf: bay dễ, chết tự sống, round 9 phút) — chọn map kz_*/surf_* ở tab Server",
+    "label": "Parkour (kz/surf: bay dễ, chết tự sống, round 9 phút)",
+    "maps": ["kz_", "surf_", "bhop_", "jump_", "climb_", "rush_"],
     "commands": [
       "sv_airaccelerate 100",
       "sv_gravity 800",

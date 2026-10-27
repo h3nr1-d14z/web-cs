@@ -406,7 +406,7 @@ async function refreshServerPane(): Promise<void> {
   ui.btnRestart.disabled = true
   try {
     const [presets, maps, roomInfo] = await Promise.all([
-      api('/api/presets') as Promise<Record<string, string>>,
+      api('/api/presets') as Promise<Record<string, { label: string; maps: string[] }>>,
       api('/api/maps') as Promise<{ maps: string[] }>,
       roomId ? api<RoomView>(`/api/rooms/${roomId}`) : Promise.resolve(null),
     ])
@@ -415,12 +415,12 @@ async function refreshServerPane(): Promise<void> {
     renderOwnerControls()
 
     ui.presetList.innerHTML = ''
-    for (const [id, label] of Object.entries(presets)) {
+    for (const [id, preset] of Object.entries(presets)) {
       const button = document.createElement('button')
       button.type = 'button'
       button.className = 'btn btn--small'
       button.style.margin = '0 0 6px'
-      button.textContent = label
+      button.textContent = preset.label
       button.addEventListener('click', () => void applyPreset(id, button))
       ui.presetList.append(button)
     }

@@ -25,23 +25,36 @@ const UDP_BASE = Number(process.env.ROOM_UDP_BASE ?? 27015)
 const RCON_PASSWORD = (process.env.RCON_PASSWORD ?? 'doi-mat-khau-nay').trim()
 const BOOT_WAIT_MS = 10_000
 
-// Map parkour (kz/surf/bhop/rush…) cần physics riêng: bay dễ, không freeze,
-// chết vài giây tự sống, không giới hạn respawn trong round.
-const PARKOUR_MAP_RE = /^(kz|surf|bhop|jump|climb|rush)[\w]*$/i
-const PARKOUR_CMDS = [
-  'sv_airaccelerate 100',
-  'sv_gravity 800',
-  'mp_freezetime 0',
-  'mp_roundtime 9',
-  'mp_timelimit 0',
-  'mp_forcerespawn 3',
-  'mp_roundrespawn_time -1',
-  'mp_startmoney 16000',
-  'mp_autoteambalance 0',
-  'mp_limitteams 0',
-  'mp_forcecamera 0',
-  'mp_fadetoblack 0',
-]
+const PRESETS_FILE = path.resolve(process.env.PRESETS_FILE ?? '/app/config/presets.json')
+
+async function loadPresets() {
+  try {
+    return JSON.parse(await readFile(PRESETS_FILE, 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+/** Preset sở hữu map này (preset khai báo `maps` = tiền tố tên map). */
+function presetForMap(presets, map) {
+  const name = String(map).toLowerCase()
+  for (const [id, preset] of Object.entries(presets)) {
+    if ((preset.maps ?? []).some((prefix) => name.startsWith(prefix))) return id
+  }
+  return ''
+}
+
+/** Áp cvar của mode: mode chủ phòng chọn lúc tạo, hoặc suy ra từ tên map.
+ *  `yb_quota` gửi sau cùng để ô "Bot" ở dashboard luôn thắng preset. */
+async function applyMode(room) {
+  const presets = await loadPresets()
+  const name = room.preset || presetForMap(presets, room.map)
+  for (const command of presets[name]?.commands ?? []) {
+    await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, command)
+  }
+  await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, `yb_quota ${room.bots}`)
+  if (name) log.info(`room ${room.id}: mode "${name}" (${presets[name].commands.length} lệnh)`)
+}
 
 const rooms = new Map()
 const dirty = () => persist().catch((error) => log.warn(`persist rooms: ${error.message}`))
@@ -63,6 +76,7 @@ async function persist() {
     maxplayers: room.maxplayers,
     password: room.password,
     bots: room.bots,
+    preset: room.preset,
     port: room.port,
     ownerToken: room.ownerToken,
   }))
@@ -150,6 +164,7 @@ async function spawnRoom(spec) {
     maxplayers: spec.maxplayers ?? 16,
     password: spec.password ?? '',
     bots: spec.bots ?? 0,
+    preset: spec.preset ?? '',
     port,
     ownerToken: spec.ownerToken ?? ownerToken(),
     proc,
@@ -175,15 +190,7 @@ async function waitReady(room) {
     if (room.password) {
       await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, `sv_password ${room.password}`)
     }
-    await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, `yb_quota ${room.bots}`)
-    // Map parkour cần physics riêng — áp tự động theo tên map.
-    if (PARKOUR_MAP_RE.test(room.map)) {
-      for (const cmd of PARKOUR_CMDS) {
-        await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, cmd)
-      }
-      await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, 'sv_restart 1')
-      log.info(`room ${room.id}: parkour physics ON (${room.map})`)
-    }
+    await applyMode(room)
     log.info(`room ${room.id}: sẵn sàng (bots=${room.bots})`)
   } catch (error) {
     log.warn(`room ${room.id}: áp cấu hình qua rcon lỗi: ${error.message}`)
@@ -198,6 +205,7 @@ function roomView(room, { includeToken = false } = {}) {
     maxplayers: room.maxplayers,
     hasPassword: Boolean(room.password),
     bots: room.bots,
+    preset: room.preset,
     port: room.port,
     players: room.status.players,
     humans: room.status.humans,
@@ -215,6 +223,7 @@ export async function createRoom(spec = {}) {
     maxplayers: Math.min(Math.max(Number(spec.maxplayers) || 16, 2), 16),
     password: String(spec.password ?? '').slice(0, 24),
     bots: Math.min(Math.max(Number(spec.bots) || 0, 0), 8),
+    preset: String(spec.preset ?? ''),
   }
 
   if (spec.proc === false) {
@@ -264,13 +273,8 @@ export async function patchRoom(id, patch) {
     room.map = patch.map
     // changelevel exec lại server.cfg → cvars về mặc định; re-apply sau khi map load.
     setTimeout(() => {
-      const cmds = PARKOUR_MAP_RE.test(room.map) ? PARKOUR_CMDS : []
-      void (async () => {
-        for (const cmd of cmds) {
-          await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, cmd).catch(() => {})
-        }
-        if (cmds.length) log.info(`room ${room.id}: re-apply parkour physics (${room.map})`)
-      })()
+      // changelevel exec lại server.cfg → cvar về mặc định; áp lại mode sau khi map load.
+      void applyMode(room).catch((error) => log.warn(`room ${room.id}: re-apply mode: ${error.message}`))
     }, 4000)
   }
   if (patch.password !== undefined) {

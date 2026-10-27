@@ -10,6 +10,7 @@ interface Room {
   bots: number
   players: number
   humans: number
+  preset?: string
 }
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -22,8 +23,18 @@ const roomsEl = $<HTMLElement>('rooms')
 const roomsCount = $<HTMLElement>('rooms-count')
 const nickInput = $<HTMLInputElement>('nick')
 const mapSelect = $<HTMLSelectElement>('room-map')
+const modeSelect = $<HTMLSelectElement>('room-mode')
+const mapHint = $<HTMLElement>('map-hint')
 
 const STORE_NICK = 'webcs.nick'
+
+interface Preset {
+  label: string
+  maps: string[]
+}
+
+let allMaps: string[] = []
+let presets: Record<string, Preset> = {}
 
 function myRooms(): Record<string, string> {
   // Token chủ phòng lưu per-key: `webcs.owner.<id>` (trang play đọc cùng key).
@@ -99,6 +110,12 @@ function renderRooms(rooms: Room[]): void {
     const title = document.createElement('div')
     title.className = 'room-title'
     title.append(document.createTextNode(room.name))
+    if (room.preset && presets[room.preset]) {
+      const mode = document.createElement('span')
+      mode.className = 'badge badge--mode'
+      mode.textContent = presets[room.preset].label.split(' (')[0]
+      title.append(mode)
+    }
     if (mine) {
       const badge = document.createElement('span')
       badge.className = 'badge badge--mine'
@@ -143,19 +160,43 @@ function renderRooms(rooms: Room[]): void {
   roomsCount.textContent = `${rooms.length} phòng`
 }
 
-async function loadMaps(): Promise<void> {
+async function loadOptions(): Promise<void> {
   try {
-    const { maps } = await api<{ maps: string[] }>('/api/maps')
-    mapSelect.innerHTML = ''
-    for (const map of maps) {
-      const option = document.createElement('option')
-      option.value = map
-      option.textContent = map
-      mapSelect.append(option)
-    }
-    if (maps.includes('de_dust2')) mapSelect.value = 'de_dust2'
+    const [mapsResult, presetsResult] = await Promise.all([
+      api<{ maps: string[] }>('/api/maps'),
+      api<Record<string, Preset>>('/api/presets'),
+    ])
+    allMaps = mapsResult.maps ?? []
+    presets = presetsResult
   } catch (error) {
-    mapSelect.innerHTML = `<option value="de_dust2">de_dust2 (lỗi nạp danh sách: ${String(error)})</option>`
+    mapHint.textContent = `Không nạp được danh sách map: ${String(error)}`
+  }
+
+  modeSelect.replaceChildren(new Option('Mặc định (server.cfg)', ''))
+  for (const [id, preset] of Object.entries(presets)) {
+    modeSelect.append(new Option(preset.label, id))
+  }
+  renderMapOptions()
+  void refreshRooms()
+}
+
+/** Pool map của mode: preset khai báo tiền tố (`maps`); không khai báo = mọi map. */
+function renderMapOptions(): void {
+  const prefixes = presets[modeSelect.value]?.maps ?? []
+  const pool = prefixes.length ? allMaps.filter((map) => prefixes.some((p) => map.startsWith(p))) : allMaps
+  const maps = pool.length ? pool : allMaps
+  const previous = mapSelect.value
+
+  mapSelect.replaceChildren(...maps.map((map) => new Option(map, map)))
+  if (maps.includes(previous)) mapSelect.value = previous
+  else if (maps.includes('de_dust2')) mapSelect.value = 'de_dust2'
+  else if (maps.length) mapSelect.value = maps[0]
+
+  if (!prefixes.length) mapHint.textContent = ''
+  else if (pool.length) mapHint.textContent = `${pool.length} map khớp pool ${prefixes.join(' ')}…`
+  else {
+    mapHint.textContent =
+      `Chưa có map ${prefixes.join(' ')}… — cài map trong game (tab Server) hoặc chọn map bất kỳ, mode vẫn áp dụng.`
   }
 }
 
@@ -168,6 +209,7 @@ async function createRoom(): Promise<void> {
     const created = await api<Room & { ownerToken: string }>('/api/rooms', {
       name,
       map: mapSelect.value,
+      preset: modeSelect.value,
       maxplayers: Number($<HTMLInputElement>('room-max').value) || 16,
       password: $<HTMLInputElement>('room-password').value.trim(),
       bots: Number($<HTMLInputElement>('room-bots').value) || 0,
@@ -188,9 +230,9 @@ function main(): void {
     localStorage.setItem(STORE_NICK, nickInput.value.trim())
   })
 
-  void loadMaps()
-  void refreshRooms()
+  void loadOptions()
   window.setInterval(() => void refreshRooms(), 5000)
+  modeSelect.addEventListener('change', renderMapOptions)
   $<HTMLButtonElement>('btn-refresh').addEventListener('click', () => void refreshRooms())
   $<HTMLButtonElement>('btn-create').addEventListener('click', () => void createRoom())
   $<HTMLButtonElement>('btn-log-close').addEventListener('click', () => {

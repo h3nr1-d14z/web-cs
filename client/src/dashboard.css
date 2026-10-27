@@ -208,6 +208,16 @@
   border: 1px solid var(--line);
 }
 
+.badge--mode {
+  background: rgba(120, 170, 255, 0.14);
+  color: #9dc0ff;
+  border: 1px solid rgba(120, 170, 255, 0.35);
+}
+
+.field .hint {
+  margin: 6px 0 0;
+}
+
 .room-meta {
   color: var(--muted);
   font-size: 12px;

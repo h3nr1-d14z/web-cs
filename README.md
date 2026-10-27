@@ -69,7 +69,9 @@ cp .env.example .env      # sửa MAP / MAXPLAYERS / ACCESS_CODE nếu muốn
 
 Lần đầu mở link, mỗi người tải ~250 MB file game (đã lược bỏ map/media/overviews của
 Half-Life mà CS 1.6 không dùng; toàn bộ `sound/` được giữ vì server vẫn precache vài file
-ambient). Zip được cache theo ETag nên lần sau gần như tức thì.
+ambient). Zip được client giữ trong **Cache Storage** (`webcs-game-v1`) và kiểm tra bằng
+`HEAD` + ETag, nên lần vào sau chỉ tốn một request vài trăm byte; assets đổi thì ETag đổi và
+client tự tải lại.
 
 Nếu muốn làm từng bước:
 
@@ -105,8 +107,13 @@ chỉ tăng ping (xem `netbird status`).
 
 Mở `http://<ip>:27016` là **dashboard**:
 
-- **Tạo phòng**: tên, map, số người tối đa, mật khẩu phòng (tuỳ chọn), số bot (**mặc định 0** —
-  chủ phòng thêm/bớt bot trong game bằng nút **+ / −** ở tab Server).
+- **Tạo phòng**: tên, **chế độ chơi** (Casual / Gần thi đấu / Parkour), map, số người tối đa,
+  mật khẩu phòng (tuỳ chọn), số bot (**mặc định 0** — chủ phòng thêm/bớt bot trong game bằng
+  nút **+ / −** ở tab Server).
+- **Pool map theo chế độ**: preset khai báo tiền tố map trong `config/presets.json`
+  (`maps: ["kz_", "surf_", …]` cho parkour) nên chọn Parkour là ô map chỉ còn map phù hợp;
+  pool rỗng thì hiện mọi map kèm gợi ý cài map. Cvar của chế độ áp ngay sau khi server boot-
+  xong, và áp lại sau mỗi lần `changelevel`. Ô **Bot** luôn thắng `yb_quota` của preset.
 - Người tạo phòng là **chủ phòng** (token lưu trên máy đó): chỉ chủ phòng đổi map/preset/
   bots/đóng phòng. Người khác chỉ xem và bấm **Vào**.
 - **Vòng đời**: phòng trống người thật quá 30 phút tự đóng; chủ phòng cũng đóng được bất cứ
@@ -115,8 +122,8 @@ Mở `http://<ip>:27016` là **dashboard**:
   (Casual / Gần thi đấu / **Parkour** kz-surf), chọn map, restart ván, thêm/bớt bot.
 - Phòng sống xuyên qua lần restart web server (lưu trong volume, tự spawn lại).
 
-Muốn thêm map (kz/surf/custom): copy `.bsp` vào volume như mục 6 — map mới xuất hiện luôn
-trong tab Server.
+Muốn thêm map (kz/surf/custom): copy `.bsp` vào volume như mục 6 — map mới xuất hiện ngay
+trong pool của dashboard lẫn tab Server.
 
 ## 6. Cấu hình
 

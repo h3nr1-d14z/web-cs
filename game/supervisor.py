@@ -107,6 +107,36 @@ def load_presets():
         return {}
 
 
+def preset_for_map(map_name):
+    """Preset khai báo `maps` = tiền tố tên map (vd pool parkour kz_/surf_...)."""
+    name = str(map_name).lower()
+    for pid, preset in load_presets().items():
+        if any(name.startswith(prefix) for prefix in (preset.get("maps") or [])):
+            return pid
+    return ""
+
+
+def apply_mode(room):
+    """Áp cvar của mode chọn lúc tạo phòng, hoặc suy ra từ tên map.
+    `yb_quota` gửi sau cùng để ô "Bot" ở dashboard luôn thắng preset."""
+    presets = load_presets()
+    name = room.get("preset") or preset_for_map(room["map"])
+    for command in (presets.get(name) or {}).get("commands") or []:
+        rcon(room["port"], RCON_PASSWORD, command)
+    rcon(room["port"], RCON_PASSWORD, f"yb_quota {room['bots']}")
+    if name:
+        print(f"[supervisor] room {room['id']}: mode {name}", flush=True)
+
+
+def reapply_mode(room, delay=4.0):
+    """changelevel exec lại server.cfg → cvar về mặc định; áp lại mode sau khi map load."""
+    time.sleep(delay)
+    try:
+        apply_mode(room)
+    except RuntimeError as exc:
+        print(f"[supervisor] room {room['id']}: re-apply mode lỗi: {exc}", flush=True)
+
+
 def free_port(rooms):
     used = {r["port"] for r in rooms.values()}
     for offset in range(20):
@@ -119,7 +149,7 @@ def free_port(rooms):
 def persist():
     os.makedirs(os.path.dirname(ROOMS_FILE), exist_ok=True)
     specs = {
-        rid: {k: r[k] for k in ("name", "map", "maxplayers", "password", "bots", "port", "owner_token")}
+        rid: {k: r[k] for k in ("name", "map", "maxplayers", "password", "bots", "preset", "port", "owner_token")}
         for rid, r in ROOMS.items()
     }
     tmp = ROOMS_FILE + ".tmp"
@@ -150,6 +180,7 @@ def spawn_room(rid, spec):
         "maxplayers": int(spec.get("maxplayers", 16)),
         "password": spec.get("password", ""),
         "bots": int(spec.get("bots", 0)),
+        "preset": spec.get("preset", ""),
         "port": port,
         "owner_token": spec.get("owner_token"),
         "proc": proc,
@@ -173,7 +204,7 @@ def apply_config(rid):
     try:
         if room["password"]:
             rcon(room["port"], RCON_PASSWORD, f"sv_password {room['password']}")
-        rcon(room["port"], RCON_PASSWORD, f"yb_quota {room['bots']}")
+        apply_mode(room)
     except RuntimeError as exc:
         print(f"[supervisor] room {rid}: rcon lỗi: {exc}", flush=True)
 
@@ -192,6 +223,7 @@ def room_view(room, token=None):
         "maxplayers": room["maxplayers"],
         "hasPassword": bool(room["password"]),
         "bots": room["bots"],
+        "preset": room.get("preset", ""),
         "port": room["port"],
         "players": room["status"]["players"],
         "humans": room["status"]["humans"],
@@ -294,12 +326,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/rooms":
             rid = "r" + secrets.token_hex(3)
+            preset = str(body.get("preset") or "")
             spec = {
                 "name": str(body.get("name") or "")[:32] or f"Phòng {rid}",
                 "map": str(body.get("map") or "de_dust2"),
                 "maxplayers": max(2, min(int(body.get("maxplayers") or 16), 16)),
                 "password": str(body.get("password") or "")[:24],
                 "bots": max(0, min(int(body.get("bots") or 0), MAX_BOTS)),
+                "preset": preset if preset in load_presets() else "",
                 "owner_token": secrets.token_hex(16),
             }
             spawn_room(rid, spec)
@@ -349,6 +383,7 @@ class Handler(BaseHTTPRequestHandler):
             if "map" in body and re.match(r"^[\w.-]+$", str(body["map"])):
                 rcon(room["port"], RCON_PASSWORD, f"changelevel {body['map']}")
                 room["map"] = body["map"]
+                threading.Thread(target=reapply_mode, args=(room,), daemon=True).start()
             if "password" in body:
                 room["password"] = str(body["password"])[:24]
                 rcon(room["port"], RCON_PASSWORD, f"sv_password {room['password']}")
