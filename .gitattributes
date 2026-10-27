@@ -24,6 +24,7 @@
 *.wasm binary
 *.pk3  binary
 *.zip  binary
+*.tar.xz binary
 *.png  binary
 *.svg  text
 *.ico  binary

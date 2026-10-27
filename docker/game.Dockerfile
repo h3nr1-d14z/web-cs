@@ -7,13 +7,11 @@ FROM i386/debian:bookworm-slim
 
 ARG XASH_TAG=continuous
 ARG REGAMEDLL_VERSION=5.30.0.814
-# Tag `continuous` là rolling: tên asset chứa version nên đổi mỗi release —
-# build 404 ở bước YaPB thì bump số này theo asset mới nhất.
-# Nên bám tag version thật (asset của tag đó không bị thay): 4.4.957 là bản
-# stable mới nhất. Muốn bản mới hơn thì `--build-arg YAPB_TAG=continuous
-# --build-arg YAPB_VERSION=<số trong tên asset>`.
-ARG YAPB_TAG=4.4.957
-ARG YAPB_VERSION=4.4.957
+# YaPB: gói tải vendor sẵn ở docker/vendor/ (2.5 MB). Tag `continuous` trên
+# GitHub thay tên asset mỗi lần phát hành (4.8.1355 → 4.8.1359 trong cùng một
+# buổi), nên tải lúc build sẽ 404 bất chợt. Nâng cấp: bỏ file mới vào
+# docker/vendor/ rồi đổi tên ở đây.
+ARG YAPB_TARBALL=yapb-4.8.1359-linux.tar.xz
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 libgcc-s1 zlib1g tar unzip xz-utils python3 \
@@ -35,9 +33,8 @@ RUN curl -fsSL -o /tmp/regamedll.zip \
 
 # YaPB: bot open-source (standalone plugin — engine nạp nó qua liblist, nó tự
 # chain tới ReGameDLL dlls/cs.so; graph từng map tải qua HTTPS khi chơi).
-RUN curl -fsSL -o /tmp/yapb.tar.xz \
-      "https://github.com/yapb/yapb/releases/download/${YAPB_TAG}/yapb-${YAPB_VERSION}-linux.tar.xz" \
- && mkdir -p /opt/yapb \
+COPY docker/vendor/${YAPB_TARBALL} /tmp/yapb.tar.xz
+RUN mkdir -p /opt/yapb \
  && tar -xJf /tmp/yapb.tar.xz -C /opt/yapb \
  && rm /tmp/yapb.tar.xz \
  && test -f /opt/yapb/addons/yapb/bin/yapb.so
