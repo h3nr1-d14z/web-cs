@@ -47,9 +47,10 @@ export async function downloadGameZip(
   const keep = async (buffer: Uint8Array<ArrayBuffer>): Promise<Uint8Array> => {
     if (cache) {
       const tag = etag || response.headers.get('etag') || ''
+      // Ghi cache hỏng = lần sau tải lại 260 MB, nên đừng nuốt lỗi im lặng.
       await cache
-        .put(url, new Response(new Blob([buffer]), { headers: { 'x-etag': tag } }))
-        .catch(() => {})
+        .put(url, new Response(buffer, { headers: { 'x-etag': tag } }))
+        .catch((error) => log.push('assets', `không lưu được cache: ${error}`))
     }
     return buffer
   }

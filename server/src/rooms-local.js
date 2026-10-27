@@ -271,9 +271,8 @@ export async function patchRoom(id, patch) {
   if (patch.map && /^[\w.-]+$/.test(patch.map) && patch.map !== room.map) {
     await rconCommand('127.0.0.1', room.port, RCON_PASSWORD, `changelevel ${patch.map}`)
     room.map = patch.map
-    // changelevel exec lại server.cfg → cvars về mặc định; re-apply sau khi map load.
+    // changelevel exec lại server.cfg → cvar về mặc định; áp lại mode sau khi map load.
     setTimeout(() => {
-      // changelevel exec lại server.cfg → cvar về mặc định; áp lại mode sau khi map load.
       void applyMode(room).catch((error) => log.warn(`room ${room.id}: re-apply mode: ${error.message}`))
     }, 4000)
   }
