@@ -430,8 +430,10 @@ async function handleApi(request, response, url) {
 }
 
 function isGlobalAdmin(request) {
-  if (!ACCESS_CODE) return true
-  return request.headers['x-access-code'] === ACCESS_CODE
+  // Không đặt mã = không có admin toàn cục: cài map từ URL để server tự fetch
+  // (SSRF) không thể mở cho bất kỳ ai trong mesh. Chủ phòng vẫn quản lý phòng
+  // của mình bằng owner token (isRoomAdmin).
+  return Boolean(ACCESS_CODE) && request.headers['x-access-code'] === ACCESS_CODE
 }
 
 async function serveCustomPk3(request, response) {
