@@ -180,9 +180,11 @@ async function listMaps() {
     .sort()
 }
 
-/** Tên map phải có .bsp trên server, nếu không phòng boot vào map mặc định mà vẫn trả 200. */
+/** Tên map phải có .bsp trên server, nếu không phòng boot vào map mặc định mà vẫn trả 200.
+ *  Chưa cài assets (thư mục maps rỗng) thì không có gì để đối chiếu — cho qua. */
 async function mapInstalled(name) {
-  return (await listMaps()).includes(String(name))
+  const maps = await listMaps()
+  return maps.length === 0 || maps.includes(String(name))
 }
 
 async function loadPresets() {

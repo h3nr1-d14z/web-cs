@@ -84,6 +84,10 @@ game.on('message', (message, remote) => {
 const tmp = await mkdtemp(join(tmpdir(), 'webcs-smoke-'))
 const presetsFile = join(tmp, 'presets.json')
 await writeFile(presetsFile, JSON.stringify({ smoke: { label: 'smoke', commands: ['sv_restart 1'] } }))
+// Supervisor coi tiến trình xash thoát là phòng chết và dựng lại: stub phải
+// sống mãi như server thật (UDP thật do socket bên dưới giả lập).
+const fakeXash = join(tmp, 'fake-xash')
+await writeFile(fakeXash, '#!/bin/sh\nexec sleep 3600\n', { mode: 0o755 })
 
 const supervisorPort = await freeTcpPort()
 const webPort = await freeTcpPort()
@@ -91,7 +95,7 @@ const webPort = await freeTcpPort()
 const supervisor = spawn('python3', ['game/supervisor.py'], {
   env: {
     ...process.env,
-    XASH: '/bin/true',
+    XASH: fakeXash,
     GAME_DIR: tmp,
     ROOMS_FILE: join(tmp, 'rooms.json'),
     PRESETS_FILE: presetsFile,
