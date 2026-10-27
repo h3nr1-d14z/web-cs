@@ -39,6 +39,9 @@ LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "7000"))
 UDP_BASE = int(os.environ.get("UDP_BASE", "27015"))
 EMPTY_TTL = int(os.environ.get("EMPTY_TTL", str(30 * 60)))
 MAX_BOTS = 8
+# Mỗi phòng = 1 process game server riêng: cap để hàng xóm ngoài Internet không
+# spawn hàng chục server qua POST /rooms (mỗi phòng giữ slot tới EMPTY_TTL).
+MAX_ROOMS = int(os.environ.get("MAX_ROOMS", "8"))
 
 LOCK = threading.Lock()
 ROOMS = {}  # id → dict
@@ -325,6 +328,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": "json lỗi"})
 
         if path == "/rooms":
+            if len(ROOMS) >= MAX_ROOMS:
+                return self._json(
+                    409,
+                    {"error": f"đã có đủ {MAX_ROOMS} phòng — vào phòng đang có, hoặc chờ phòng trống tự đóng"},
+                )
             rid = "r" + secrets.token_hex(3)
             preset = str(body.get("preset") or "")
             spec = {

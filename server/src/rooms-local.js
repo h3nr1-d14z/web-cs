@@ -24,6 +24,8 @@ const EMPTY_TTL_MS = Number(process.env.EMPTY_TTL_MS ?? 30 * 60 * 1000)
 const UDP_BASE = Number(process.env.ROOM_UDP_BASE ?? 27015)
 const RCON_PASSWORD = (process.env.RCON_PASSWORD ?? 'doi-mat-khau-nay').trim()
 const BOOT_WAIT_MS = 10_000
+// Mỗi phòng = 1 process game server: cap để không ai spawn hàng chục cái.
+const MAX_ROOMS = 8
 
 const PRESETS_FILE = path.resolve(process.env.PRESETS_FILE ?? '/app/config/presets.json')
 
@@ -217,6 +219,11 @@ function roomView(room, { includeToken = false } = {}) {
 /** Tạo phòng; trả room kèm ownerToken (chỉ trả 1 lần lúc tạo).
  *  spec.proc = false → chỉ tạo record (dùng cho test tunnel, không spawn server). */
 export async function createRoom(spec = {}) {
+  if (rooms.size >= MAX_ROOMS) {
+    throw Object.assign(new Error(`đã có đủ ${MAX_ROOMS} phòng — vào phòng đang có, hoặc chờ phòng trống tự đóng`), {
+      status: 409,
+    })
+  }
   const base = {
     name: String(spec.name ?? '').slice(0, 32) || undefined,
     map: String(spec.map ?? 'de_dust2'),

@@ -57,6 +57,9 @@ services:
       KZ_MODE: ${KZ_MODE:-0}
     volumes:
       - assets:/xashds
+      # Danh sách phòng sống qua recreate container (trước đây /data nằm trong
+      # writable layer nên mất sạch mỗi lần compose tạo lại container game).
+      - rooms:/data
     expose:
       - "27015-27050/udp"
       - "7000"
@@ -94,3 +97,4 @@ services:
 
 volumes:
   assets:
+  rooms:
