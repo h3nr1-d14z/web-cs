@@ -1,0 +1,3 @@
+[en]
+ZONE_FINISH = Finish zone set
+ZONE_START = Start zone set

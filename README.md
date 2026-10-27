@@ -118,6 +118,8 @@ Mở `http://<ip>:27016` là **dashboard**:
   (ProKreedz: checkpoint/timer, cvar `kz_*`); phòng còn lại chạy cây YaPB. `ls /xashkz`
   trong container game thấy cây parkour (symlink về `/xashds`, không nhân bản asset).
   Nên **bot chỉ có ở phòng không-parkour** — nút ± Bot ở phòng parkour không có tác dụng.
+  Chữ chat/HUD của ProKreedz nằm ở `config/amxx-lang/*.txt` (key trích từ `.sma`); sửa
+  xong có hiệu lực cho phòng tạo sau, không cần build lại.
 - Người tạo phòng là **chủ phòng** (token lưu trên máy đó): chỉ chủ phòng đổi map/preset/
   bots/đóng phòng. Người khác chỉ xem và bấm **Vào**.
 - **Vòng đời**: phòng trống người thật quá 30 phút tự đóng; chủ phòng cũng đóng được bất cứ

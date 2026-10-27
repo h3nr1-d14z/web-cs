@@ -56,6 +56,12 @@ cp -f "$ROOT/cstrike/liblist.gam" "$KZ_ROOT/cstrike/liblist.gam"
 sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod.so"#' "$KZ_ROOT/cstrike/liblist.gam"
 cp -a /opt/amxx/addons/amxmodx/configs /opt/amxx/addons/amxmodx/data \
      /opt/amxx/addons/amxmodx/dlls /opt/amxx/addons/amxmodx/modules "$KZ_ROOT/cstrike/addons/amxmodx/"
+# Từ điển của ProKreedz không có trong AMXX lẫn tarball: repo tự viết, key lấy
+# đúng từ .sma. Thiếu file thì mọi câu chat/HUD in ra "KZ_CHECKPOINT_SAVED".
+mkdir -p "$KZ_ROOT/cstrike/addons/amxmodx/data/lang"
+for dict in /opt/config/amxx-lang/*.txt; do
+  ln -sf "$dict" "$KZ_ROOT/cstrike/addons/amxmodx/data/lang/$(basename "$dict")"
+done
 cp -f /opt/config/amxx-plugins/*.amxx "$KZ_ROOT/cstrike/addons/amxmodx/plugins/"
 # AMXX chỉ nạp plugin được liệt kê ở đây — copy file .amxx vào plugins/ là chưa đủ.
 for plugin in /opt/config/amxx-plugins/*.amxx; do
