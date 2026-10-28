@@ -68,13 +68,13 @@ const ui = {
   btnConsole: $<HTMLButtonElement>('btn-console'),
   logPanel: $<HTMLElement>('logpanel'),
   logBuffer: $<HTMLElement>('logbuffer'),
+  consoleInput: $<HTMLInputElement>('console-input'),
   btnLog: $<HTMLButtonElement>('btn-log'),
   btnLogClose: $<HTMLButtonElement>('btn-log-close'),
 }
 
 const STORE_NICK = 'webcs.nick'
 const STORE_CODE = 'webcs.code'
-const STORE_FULLSCREEN = 'webcs.fullscreen'
 const STORE_ONBOARDED = 'webcs.onboarded'
 
 interface ServerStatus {
@@ -234,13 +234,31 @@ function unlockKeyboard(): void {
   ;(navigator as Navigator & { keyboard?: { unlock?: () => void } }).keyboard?.unlock?.()
 }
 
+/**
+ * Chrome chỉ cho khoá phím trình duyệt khi trang đang fullscreen, và fullscreen
+ * lại đòi một cú click thật. Gọi từ handler click để Ctrl+W (duck + tiến) mở
+ * menu game thay vì đóng tab — không cách nào chặn Ctrl+W ngoài fullscreen.
+ */
+async function ensureKeyboardCapture(): Promise<void> {
+  const keyboard = (navigator as Navigator & { keyboard?: { lock?: () => Promise<void> } }).keyboard
+  if (!keyboard?.lock) return
+  try {
+    if (!document.fullscreenElement) await enterFullscreen(document.documentElement)
+    await lockKeyboard()
+  } catch (error) {
+    log.push('ui', `Không khoá được phím trình duyệt: ${String(error)}`)
+  }
+}
+
 async function toggleFullscreen(): Promise<void> {
   try {
     if (document.fullscreenElement) {
       await document.exitFullscreen()
       return
     }
-    await enterFullscreen(session ? ui.canvas : document.documentElement)
+    // Cả trang, không phải riêng canvas: canvas vào top layer sẽ nằm trên
+    // menu tạm dừng/HUD và không bấm được gì.
+    await enterFullscreen(document.documentElement)
   } catch (error) {
     log.push('ui', `Fullscreen thất bại: ${String(error)}`)
   }
@@ -372,7 +390,7 @@ function buildGuidePane(): void {
   tip.className = 'pane-hint'
   tip.style.marginTop = '10px'
   tip.textContent =
-    'Đổi phím ở tab “Phím”. Bấm chuột vào màn hình để khóa chuột, ESC để mở lại mục này.'
+    'Đổi phím ở tab “Phím”. Bấm chuột vào màn hình để khóa chuột; lần bấm đầu cũng bật toàn màn hình và khoá phím trình duyệt nên Ctrl+W (ngồi + tiến) không đóng tab. ESC để mở lại mục này.'
   pane.append(tip)
 }
 
@@ -782,9 +800,7 @@ async function startGame(): Promise<void> {
       ui.hudNet.textContent = 'đang kết nối…'
       ui.hudNet.className = 'hud-chip'
       syncPointerState()
-      if (localStorage.getItem(STORE_FULLSCREEN) === '1') void toggleFullscreen()
       requestLock()
-      if (document.fullscreenElement) void lockKeyboard()
       const first = localStorage.getItem(STORE_ONBOARDED) !== '1'
       localStorage.setItem(STORE_ONBOARDED, '1')
       showTab(first ? 'guide' : 'settings')
@@ -889,10 +905,17 @@ function leaveGame(): void {
 function wireUi(): void {
   ui.canvas.addEventListener('click', () => {
     if (document.pointerLockElement !== ui.canvas) requestLock()
+    void ensureKeyboardCapture()
   })
 
-  ui.btnResume.addEventListener('click', requestLock)
-  ui.btnUnlock.addEventListener('click', requestLock)
+  ui.btnResume.addEventListener('click', () => {
+    requestLock()
+    void ensureKeyboardCapture()
+  })
+  ui.btnUnlock.addEventListener('click', () => {
+    requestLock()
+    void ensureKeyboardCapture()
+  })
   ui.btnFs.addEventListener('click', () => void toggleFullscreen())
   ui.btnToggleFs.addEventListener('click', () => void toggleFullscreen())
   ui.btnLeave.addEventListener('click', leaveGame)
@@ -971,6 +994,18 @@ function wireUi(): void {
     ui.logPanel.hidden = true
   })
 
+  // Không có console trong canvas (browser build chỉ mirror ra DevTools), nên
+  // noclip/god/bind… phải có ô nhập chạy thẳng Cmd_ExecuteString.
+  ui.consoleInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return
+    event.stopPropagation()
+    const command = ui.consoleInput.value.trim()
+    ui.consoleInput.value = ''
+    if (!command || !session) return
+    log.push('cmd', `> ${command}`)
+    exec(command)
+  })
+
   log.subscribe((line) => {
     if (ui.logPanel.hidden) return
     ui.logBuffer.textContent += `${line}\n`
@@ -987,7 +1022,7 @@ function wireUi(): void {
 }
 
 function main(): void {
-  ;(window as unknown as Record<string, unknown>).__webcs = { log }
+  ;(window as unknown as Record<string, unknown>).__webcs = { log, exec }
 
   buildGuidePane()
   buildSettingsPane()

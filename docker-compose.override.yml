@@ -1,0 +1,25 @@
+# Deploy trên sv-2: Traefik (netbird-traefik) chấm dứt TLS, container không
+# publish port ra host. Chỉ dùng file này khi chạy sau Traefik; `run.sh` local
+# vẫn dùng compose gốc với WEB_PORT như bình thường.
+services:
+  web:
+    # Ghi đè `ports` của compose gốc: không mở 27016 ra host.
+    ports: !reset []
+    networks: [default, netbird]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=theone-vpn_netbird
+      - traefik.http.routers.webcs.rule=Host(`cs.the1studio.org`)
+      - traefik.http.routers.webcs.entrypoints=websecure
+      - traefik.http.routers.webcs.tls=true
+      # Dùng lại wildcard *.the1studio.org đã có, không xin cert mới.
+      - traefik.http.routers.webcs.tls.certresolver=letsencrypt-dns
+      - traefik.http.routers.webcs.tls.domains[0].main=*.the1studio.org
+      - traefik.http.routers.webcs.middlewares=webcs-allowlist
+      - traefik.http.middlewares.webcs-allowlist.ipallowlist.sourcerange=10.100.0.0/16
+      - traefik.http.services.webcs.loadbalancer.server.port=8080
+
+networks:
+  netbird:
+    external: true
+    name: theone-vpn_netbird

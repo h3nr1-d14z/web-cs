@@ -130,6 +130,11 @@ Mở `http://<ip>:27016` là **dashboard**:
   lúc nào (tab Server → *Đóng phòng*).
 - Trong game, menu **ESC → tab Server** là bảng điều khiển của phòng: preset chế độ chơi
   (Casual / Gần thi đấu / **Parkour** kz-surf), chọn map, restart ván, thêm/bớt bot.
+- **Cheats + console engine**: tab Server có *Cheats cả phòng* (`sv_cheats 1`) — tick là
+  hiệu lực ngay, không phải vào lại phòng. Cần `noclip`, `god`, `impulse 101`… thì bật ô đó
+  rồi gõ lệnh vào ô **Console engine** dưới menu ESC: client wasm không có console trong
+  canvas, ô này gọi thẳng `Cmd_ExecuteString`. Output của engine in trên đỉnh màn hình khi
+  đang chơi (và trong `__webcs.log.lines`).
 - Phòng sống xuyên qua lần restart web server (lưu trong volume, tự spawn lại).
 
 Muốn thêm map (kz/surf/custom): copy `.bsp` vào volume như mục 6 — map mới xuất hiện ngay
@@ -216,6 +221,9 @@ NetBird, hoặc game-streaming từ máy có GPU (mỗi người một session).
 | Mất kết nối giữa chừng | Client tự reconnect (1,2 s). Nếu lặp lại, xem log `web` |
 | Âm thanh không có | Browser chặn autoplay: click vào canvas một lần |
 | Chuột không khóa | Click vào màn hình; một số extension (vimium…) chiếm phím |
+| `Ctrl+W` đóng tab giữa trận | `Ctrl+W` là shortcut của Chrome, trang không chặn được ngoài fullscreen. Cú click đầu vào canvas tự bật fullscreen + Keyboard Lock nên `Ctrl+W` = ngồi xuống + tiến; tự thoát fullscreen (ESC) thì khoá mất — click lại để bật. Firefox/Safari chưa có Keyboard Lock: đổi bind ngồi xuống ở tab **Phím** |
+| `noclip` báo *“You must have sv_cheats set to 1”* | Chủ phòng tick **Cheats cả phòng** ở tab Server — áp ngay, không cần vào lại |
+| Gõ lệnh ở Console engine mà không thấy gì | Lệnh đã chạy; output in trên đỉnh canvas, bấm *Tiếp tục* để thấy, hoặc đọc `__webcs.log.lines` |
 
 ## 11. Phát triển / chỉnh client
 

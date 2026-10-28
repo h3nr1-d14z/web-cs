@@ -695,6 +695,23 @@ body:not(.pointer-locked) .hud {
   white-space: pre-wrap;
 }
 
+.console-input {
+  margin-top: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  outline: none;
+}
+
+.console-input:focus {
+  border-color: var(--accent, #e0a91b);
+  background: rgba(255, 255, 255, 0.09);
+}
+
 [hidden] {
   display: none !important;
 }
