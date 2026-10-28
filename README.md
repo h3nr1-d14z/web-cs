@@ -114,12 +114,16 @@ Mở `http://<ip>:27016` là **dashboard**:
   (`maps: ["kz_", "surf_", …]` cho parkour) nên chọn Parkour là ô map chỉ còn map phù hợp;
   pool rỗng thì hiện mọi map kèm gợi ý cài map. Cvar của chế độ áp ngay sau khi server boot-
   xong, và áp lại sau mỗi lần `changelevel`. Ô **Bot** luôn thắng `yb_quota` của preset.
-- **Hai cây game**: phòng parkour chạy một basedir riêng có metamod + AMXX
-  (ProKreedz: checkpoint/timer, cvar `kz_*`); phòng còn lại chạy cây YaPB. `ls /xashkz`
-  trong container game thấy cây parkour (symlink về `/xashds`, không nhân bản asset).
-  Nên **bot chỉ có ở phòng không-parkour** — nút ± Bot ở phòng parkour không có tác dụng.
-  Chữ chat/HUD của ProKreedz nằm ở `config/amxx-lang/*.txt` (key trích từ `.sma`); sửa
-  xong có hiệu lực cho phòng tạo sau, không cần build lại.
+- **Hai cây game**: phòng parkour chạy một basedir riêng không có YaPB; phòng còn lại chạy
+  cây YaPB. `ls /xashkz` trong container game thấy cây parkour (symlink về `/xashds`, không
+  nhân bản asset). Nên **bot chỉ có ở phòng không-parkour** — nút ± Bot ở phòng parkour
+  không có tác dụng.
+  Cây parkour hiện **chạy `cs.so` trần** (không checkpoint/timer): `amxmodx_mm_i386.so`
+  — cả 1.9.0.5303 lẫn 1.10.0.5487 — nhảy vào `0x00000000` từ
+  `C_ClientUserInfoChanged_Post` khi client gửi userinfo, server SIGSEGV và client về
+  menu (gdb backtrace; metamod một mình thì join được). Bật lại bằng `KZ_AMXX=1` trong
+  `.env` khi tìm được bản AMXX tương thích engine — khi đó `config/amxx-lang/*.txt` mới
+  có tác dụng: chữ chat/HUD của ProKreedz, key trích từ `.sma`, sửa xong áp cho phòng tạo sau.
 - Người tạo phòng là **chủ phòng** (token lưu trên máy đó): chỉ chủ phòng đổi map/preset/
   bots/đóng phòng. Người khác chỉ xem và bấm **Vào**.
 - **Vòng đời**: phòng trống người thật quá 30 phút tự đóng; chủ phòng cũng đóng được bất cứ

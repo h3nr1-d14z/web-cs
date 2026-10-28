@@ -53,26 +53,37 @@ done
 # phải tạo vô điều kiện, kể cả lúc file chưa tồn tại.
 ln -sf "$ROOT/cstrike/custom.pk3" "$KZ_ROOT/cstrike/custom.pk3"
 cp -f "$ROOT/cstrike/liblist.gam" "$KZ_ROOT/cstrike/liblist.gam"
-sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod.so"#' "$KZ_ROOT/cstrike/liblist.gam"
-cp -a /opt/amxx/addons/amxmodx/configs /opt/amxx/addons/amxmodx/data \
-     /opt/amxx/addons/amxmodx/dlls /opt/amxx/addons/amxmodx/modules "$KZ_ROOT/cstrike/addons/amxmodx/"
-# Từ điển của ProKreedz không có trong AMXX lẫn tarball: repo tự viết, key lấy
-# đúng từ .sma. Thiếu file thì mọi câu chat/HUD in ra "KZ_CHECKPOINT_SAVED".
-mkdir -p "$KZ_ROOT/cstrike/addons/amxmodx/data/lang"
-for dict in /opt/config/amxx-lang/*.txt; do
-  ln -sf "$dict" "$KZ_ROOT/cstrike/addons/amxmodx/data/lang/$(basename "$dict")"
-done
-cp -f /opt/config/amxx-plugins/*.amxx "$KZ_ROOT/cstrike/addons/amxmodx/plugins/"
-# AMXX chỉ nạp plugin được liệt kê ở đây — copy file .amxx vào plugins/ là chưa đủ.
-for plugin in /opt/config/amxx-plugins/*.amxx; do
-  basename "$plugin"
-done > "$KZ_ROOT/cstrike/addons/amxmodx/configs/plugins.ini"
-cp -f /opt/metamod/addons/metamod/dlls/metamod.so "$KZ_ROOT/cstrike/addons/metamod/dlls/metamod.so"
-printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$KZ_ROOT/cstrike/addons/metamod/plugins.ini"
-printf '[config]\ngamedll_linux dlls/cs.so\n' > "$KZ_ROOT/cstrike/addons/metamod/config.ini"
-# ProKreedz lưu kỷ lục qua SQLite; module có sẵn nhưng mặc định bị comment.
-printf 'sqlite\n' >> "$KZ_ROOT/cstrike/addons/amxmodx/configs/modules.ini"
-echo "→ bots: $ROOT (YaPB) · parkour: $KZ_ROOT (metamod + AMXX + ProKreedz)"
+
+# AMXX tắt mặc định (KZ_AMXX=1 để bật lại). Bằng chứng: amxmodx_mm_i386.so —
+# cả 1.9.0.5303 lẫn 1.10.0.5487 — nhảy vào 0x00000000 từ
+# C_ClientUserInfoChanged_Post ngay khi client gửi userinfo; server SIGSEGV và
+# client bị đá về menu. Metamod một mình (không AMXX) thì join bình thường, nên
+# cây parkour chạy cs.so trần: map kz/surf vẫn chơi, chỉ mất checkpoint/timer.
+if [ "${KZ_AMXX:-0}" = "1" ]; then
+  sed -i 's#^gamedll_linux .*#gamedll_linux "addons/metamod/dlls/metamod.so"#' "$KZ_ROOT/cstrike/liblist.gam"
+  cp -a /opt/amxx/addons/amxmodx/configs /opt/amxx/addons/amxmodx/data \
+       /opt/amxx/addons/amxmodx/dlls /opt/amxx/addons/amxmodx/modules "$KZ_ROOT/cstrike/addons/amxmodx/"
+  # Từ điển của ProKreedz không có trong AMXX lẫn tarball: repo tự viết, key lấy
+  # đúng từ .sma. Thiếu file thì mọi câu chat/HUD in ra "KZ_CHECKPOINT_SAVED".
+  mkdir -p "$KZ_ROOT/cstrike/addons/amxmodx/data/lang"
+  for dict in /opt/config/amxx-lang/*.txt; do
+    ln -sf "$dict" "$KZ_ROOT/cstrike/addons/amxmodx/data/lang/$(basename "$dict")"
+  done
+  cp -f /opt/config/amxx-plugins/*.amxx "$KZ_ROOT/cstrike/addons/amxmodx/plugins/"
+  # AMXX chỉ nạp plugin được liệt kê ở đây — copy file .amxx vào plugins/ là chưa đủ.
+  for plugin in /opt/config/amxx-plugins/*.amxx; do
+    basename "$plugin"
+  done > "$KZ_ROOT/cstrike/addons/amxmodx/configs/plugins.ini"
+  cp -f /opt/metamod/addons/metamod/dlls/metamod.so "$KZ_ROOT/cstrike/addons/metamod/dlls/metamod.so"
+  printf 'linux addons/amxmodx/dlls/amxmodx_mm_i386.so\n' > "$KZ_ROOT/cstrike/addons/metamod/plugins.ini"
+  printf '[config]\ngamedll_linux dlls/cs.so\n' > "$KZ_ROOT/cstrike/addons/metamod/config.ini"
+  # ProKreedz lưu kỷ lục qua SQLite; module có sẵn nhưng mặc định bị comment.
+  printf 'sqlite\n' >> "$KZ_ROOT/cstrike/addons/amxmodx/configs/modules.ini"
+  echo "→ bots: $ROOT (YaPB) · parkour: $KZ_ROOT (metamod + AMXX + ProKreedz)"
+else
+  sed -i 's#^gamedll_linux .*#gamedll_linux "dlls/cs.so"#' "$KZ_ROOT/cstrike/liblist.gam"
+  echo "→ bots: $ROOT (YaPB) · parkour: $KZ_ROOT (cs.so, AMXX tắt — KZ_AMXX=1 để bật)"
+fi
 
 # delta.lst is the network delta table; the engine aborts without it and some
 # HLDS builds ship it only in the newer game files.
